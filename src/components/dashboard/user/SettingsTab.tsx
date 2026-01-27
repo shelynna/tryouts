@@ -1,21 +1,18 @@
 
 import React, { useState } from 'react';
-import { Card, Button, Input, Select, useToast } from '../../ui';
+import { Card, Button, Input, Select, useToast, Modal } from '../../ui';
 import { User, PickupPoint } from '../../../types';
-import { MapPin, CheckCircle, Edit2, Save, X } from 'lucide-react';
+import { MapPin, CheckCircle, Edit2, Save, X, LogOut, Camera, User as UserIcon, Mail, Phone } from 'lucide-react';
 import { API } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
-
-// Helper component
-const CheckIcon = ({ size }: { size: number }) => (
-    <CheckCircle size={size} />
-);
+import { ASSETS } from '../../../assets';
 
 export const SettingsTab: React.FC<{ user: User }> = ({ user }) => {
-  const { refreshUser } = useAuth();
+  const { refreshUser, logout } = useAuth();
   const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [formData, setFormData] = useState({
       fullName: user.fullName,
       phoneNumber: user.phoneNumber,
@@ -45,97 +42,116 @@ export const SettingsTab: React.FC<{ user: User }> = ({ user }) => {
       setIsEditing(false);
   };
 
-  return (
-      <div className="grid md:grid-cols-3 gap-8">
-          <Card className="md:col-span-2">
-              <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-serif font-bold text-xl text-brand-900">Account Settings</h3>
-                  {!isEditing ? (
-                      <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
-                          <Edit2 size={14} /> Edit Profile
-                      </Button>
-                  ) : (
-                      <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isSaving} className="gap-1 text-stone-500">
-                              <X size={14} /> Cancel
-                          </Button>
-                          <Button size="sm" onClick={handleSave} loading={isSaving} className="gap-1">
-                              <Save size={14} /> Save
-                          </Button>
-                      </div>
-                  )}
+  const ProfileItem = ({ label, value, icon: Icon, verified }: any) => (
+      <div className="flex items-center justify-between py-4 border-b border-stone-100 last:border-0 group">
+          <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-stone-50 flex items-center justify-center text-stone-400">
+                  <Icon size={16} />
               </div>
-              
-              <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      <div>
-                          {isEditing ? (
-                              <Input 
-                                label="Full Name"
-                                value={formData.fullName}
-                                onChange={e => setFormData({...formData, fullName: e.target.value})}
-                              />
-                          ) : (
-                              <>
-                                <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Full Name</label>
-                                <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-medium">{user.fullName}</div>
-                              </>
-                          )}
-                      </div>
-                      <div>
-                          {isEditing ? (
-                              <Input 
-                                label="Phone Number"
-                                value={formData.phoneNumber}
-                                onChange={e => setFormData({...formData, phoneNumber: e.target.value})}
-                              />
-                          ) : (
-                              <>
-                                <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Phone</label>
-                                <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-medium">{user.phoneNumber}</div>
-                              </>
-                          )}
-                      </div>
-                  </div>
-                  
-                  <div>
-                      <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Email Address</label>
-                      <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-700 font-medium flex justify-between items-center">
-                          {user.email}
-                          {user.isEmailVerified ? (
-                              <span className="text-emerald-600 text-xs bg-emerald-50 px-2 py-1 rounded-md font-bold flex items-center gap-1"><CheckIcon size={10} /> Verified</span>
-                          ) : (
-                              <span className="text-orange-600 text-xs bg-orange-50 px-2 py-1 rounded-md font-bold">Unverified</span>
-                          )}
-                      </div>
-                  </div>
-
-                  {isEditing && (
-                      <div>
-                          <Select 
-                            label="Preferred Pickup Point"
-                            options={Object.values(PickupPoint).map(p => ({ label: p, value: p }))}
-                            value={formData.pickupPoint}
-                            onChange={(e: any) => setFormData({...formData, pickupPoint: e.target.value})}
-                          />
-                      </div>
-                  )}
+              <div>
+                  <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-0.5">{label}</p>
+                  <p className="font-medium text-stone-900 text-base">{value}</p>
               </div>
-          </Card>
-
-          <Card className="bg-brand-50 border-brand-100">
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm mb-4 text-brand-600 border border-brand-100">
-                 <MapPin size={24} />
-              </div>
-              <h3 className="font-bold text-brand-900 mb-2">Pickup Location</h3>
-              <p className="text-sm text-brand-700 mb-6">Your designated collection point for the current cycle.</p>
-              <div className="p-4 bg-white rounded-xl border border-brand-100 shadow-sm text-center font-serif font-bold text-xl text-brand-900">
-                  {isEditing ? formData.pickupPoint : user.pickupPoint}
-              </div>
-              <p className="text-xs text-brand-400 mt-4 text-center">
-                  {isEditing ? "Select a new point above to change." : "To change this, verify contact support or edit profile before Lock Date."}
-              </p>
-          </Card>
+          </div>
+          {verified && (
+              <span className="bg-emerald-50 text-emerald-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                  <CheckCircle size={10} /> Verified
+              </span>
+          )}
       </div>
+  );
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-8 pb-20">
+      
+      <Modal
+        isOpen={isLogoutConfirmOpen}
+        onClose={() => setIsLogoutConfirmOpen(false)}
+        title="Sign Out"
+        size="sm"
+        footer={
+            <>
+                <Button variant="ghost" onClick={() => setIsLogoutConfirmOpen(false)}>Cancel</Button>
+                <Button variant="danger" onClick={logout}>Confirm Sign Out</Button>
+            </>
+        }
+      >
+        <p className="text-stone-600">
+            Are you sure you want to sign out of your account?
+        </p>
+      </Modal>
+
+      {/* HEADER / AVATAR SECTION */}
+      <div className="flex flex-col items-center text-center">
+          <div className="relative mb-4 group">
+              <div className="w-24 h-24 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center text-3xl font-heading font-bold border-4 border-white shadow-xl">
+                  {user.fullName.charAt(0)}
+              </div>
+              {/* Optional: Add functionality to upload image later */}
+              <button className="absolute bottom-0 right-0 bg-stone-900 text-white p-2 rounded-full shadow-md hover:bg-brand-600 transition-colors">
+                  <Camera size={14} />
+              </button>
+          </div>
+          <h2 className="text-2xl font-heading font-bold text-stone-900">{user.fullName}</h2>
+          <p className="text-stone-500 font-medium">{user.email}</p>
+          <div className="mt-2">
+             <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${user.isSubscriber ? 'bg-brand-900 text-white' : 'bg-stone-200 text-stone-600'}`}>
+                 {user.isSubscriber ? 'Subscriber' : 'Standard Member'}
+             </span>
+          </div>
+      </div>
+
+      <Card className="overflow-hidden">
+          <div className="flex justify-between items-center mb-2">
+              <h3 className="font-heading font-bold text-lg text-stone-900">Personal Details</h3>
+              {!isEditing && (
+                  <button onClick={() => setIsEditing(true)} className="text-brand-600 font-bold text-sm hover:underline flex items-center gap-1">
+                      <Edit2 size={14} /> Edit
+                  </button>
+              )}
+          </div>
+
+          {isEditing ? (
+              <div className="space-y-5 animate-in fade-in pt-4">
+                  <Input 
+                    label="Full Name"
+                    value={formData.fullName}
+                    onChange={e => setFormData({...formData, fullName: e.target.value})}
+                  />
+                  <Input 
+                    label="Phone Number"
+                    value={formData.phoneNumber}
+                    onChange={e => setFormData({...formData, phoneNumber: e.target.value})}
+                  />
+                  <Select 
+                    label="Pickup Point"
+                    options={Object.values(PickupPoint).map(p => ({ label: p, value: p }))}
+                    value={formData.pickupPoint}
+                    onChange={(e: any) => setFormData({...formData, pickupPoint: e.target.value})}
+                  />
+                  
+                  <div className="flex gap-3 pt-2">
+                      <Button fullWidth variant="ghost" onClick={handleCancel} disabled={isSaving}>Cancel</Button>
+                      <Button fullWidth onClick={handleSave} loading={isSaving}>Save Changes</Button>
+                  </div>
+              </div>
+          ) : (
+              <div className="space-y-1">
+                  <ProfileItem icon={Phone} label="Phone" value={user.phoneNumber} />
+                  <ProfileItem icon={Mail} label="Email" value={user.email} verified={user.isEmailVerified} />
+                  <ProfileItem icon={MapPin} label="Pickup Location" value={user.pickupPoint} />
+              </div>
+          )}
+      </Card>
+
+      <div className="flex justify-center">
+         <button 
+            onClick={() => setIsLogoutConfirmOpen(true)} 
+            className="flex items-center gap-2 text-red-500 font-bold hover:bg-red-50 px-6 py-3 rounded-xl transition-colors"
+         >
+            <LogOut size={18} /> Sign Out
+         </button>
+      </div>
+    </div>
   );
 };

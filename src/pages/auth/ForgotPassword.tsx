@@ -6,6 +6,8 @@ import { API } from '../../lib/api';
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { motion } from 'framer-motion';
 
+const MotionDiv = motion.div as any;
+
 export const ForgotPassword: React.FC<{ onNavigate: (view: string) => void }> = ({ onNavigate }) => {
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +29,7 @@ export const ForgotPassword: React.FC<{ onNavigate: (view: string) => void }> = 
   if (isSent) {
       return (
         <AuthLayout title="Check your email" subtitle={`We've sent a link to ${email}`} onBack={() => onNavigate('LOGIN')}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center space-y-6 py-8">
+            <MotionDiv initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center space-y-6 py-8">
                 <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
                     <CheckCircle size={40} />
                 </div>
@@ -38,7 +40,7 @@ export const ForgotPassword: React.FC<{ onNavigate: (view: string) => void }> = 
                     <Button variant="outline" fullWidth onClick={() => window.open('https://gmail.com', '_blank')}>Open Email App</Button>
                     <Button variant="ghost" fullWidth onClick={() => setIsSent(false)}>Try another email</Button>
                 </div>
-            </motion.div>
+            </MotionDiv>
         </AuthLayout>
       );
   }

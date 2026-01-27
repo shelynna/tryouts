@@ -1,8 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag, CreditCard, Truck, ArrowRight, Check, X } from 'lucide-react';
 import { Button } from '../ui';
+
+const MotionDiv = motion.div as any;
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -13,6 +16,12 @@ interface OnboardingModalProps {
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClose, onComplete, pickupPoint }) => {
   const [step, setStep] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   // Lock body scroll
   useEffect(() => {
@@ -20,7 +29,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!mounted) return null;
 
   const steps = [
     {
@@ -51,24 +60,25 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
     }
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
-      <motion.div
+      {isOpen && (
+      <MotionDiv
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-[998] flex items-center justify-center p-4"
+        className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-[9998] flex items-center justify-center p-4"
       >
-        <motion.div
+        <MotionDiv
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
           transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
-          className="bg-white rounded-[32px] shadow-2xl max-w-md w-full overflow-hidden relative z-[999] flex flex-col"
+          className="bg-white rounded-[32px] shadow-2xl max-w-md w-full overflow-hidden relative z-[9999] flex flex-col"
         >
           {/* Progress Bar Header */}
           <div className="absolute top-0 left-0 right-0 h-2 bg-stone-100">
-            <motion.div 
+            <MotionDiv 
               className="h-full bg-brand-500"
               initial={{ width: "33%" }}
               animate={{ width: `${((step + 1) / steps.length) * 100}%` }}
@@ -85,7 +95,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
 
           <div className="p-8 pt-12 text-center flex-1 flex flex-col items-center justify-center">
             <AnimatePresence mode="wait">
-              <motion.div
+              <MotionDiv
                 key={step}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -104,7 +114,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
                 <p className="text-stone-500 leading-relaxed mb-10 text-lg max-w-[300px]">
                   {steps[step].desc}
                 </p>
-              </motion.div>
+              </MotionDiv>
             </AnimatePresence>
 
             <div className="flex gap-2 justify-center mb-8">
@@ -124,8 +134,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClos
               )}
             </Button>
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        </MotionDiv>
+      </MotionDiv>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 };

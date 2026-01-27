@@ -1,6 +1,5 @@
-
 import React, { useRef, useEffect } from 'react';
-import { cn } from './utils';
+import { cn } from '../../lib/utils';
 
 interface OTPInputProps {
     value: string;
@@ -39,7 +38,6 @@ export const OTPInput: React.FC<OTPInputProps> = ({ value, onChange, length = 4 
         onChange(chars.join('').slice(0, length));
         
         // Focus the box after the last inserted char
-        const nextIndex = Math.min(index + numbers.length, length - 1);
         const target = (index + numbers.length >= length) ? length - 1 : index + numbers.length;
         inputs.current[target]?.focus();
         return;

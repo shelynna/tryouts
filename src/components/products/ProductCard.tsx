@@ -4,8 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Product } from '../../types';
 import { Plus, Minus, Check } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
-import { cn } from '../ui/utils';
+import { cn } from '../../lib/utils';
 import { ASSETS } from '../../assets';
+
+const MotionDiv = motion.div as any;
 
 interface ProductCardProps {
     product: Product;
@@ -24,20 +26,31 @@ export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({
       e.stopPropagation();
       if (isLoading) return;
       setIsLoading(true);
-      await onIncrement(product);
-      setIsLoading(false);
+      try {
+          await onIncrement(product);
+      } catch (error) {
+          // Error is already handled by Context Toast, but we must catch it here to ensure finally runs
+          console.debug("Increment suppressed", error);
+      } finally {
+          setIsLoading(false);
+      }
   };
 
   const handleDecrement = async (e: React.MouseEvent) => {
       e.stopPropagation();
       if (isLoading) return;
       setIsLoading(true);
-      await onDecrement(product);
-      setIsLoading(false);
+      try {
+          await onDecrement(product);
+      } catch (error) {
+          console.debug("Decrement suppressed", error);
+      } finally {
+          setIsLoading(false);
+      }
   };
 
   return (
-      <motion.div
+      <MotionDiv
         ref={ref}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -48,13 +61,13 @@ export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({
         {/* Image Container */}
         <div className="relative aspect-[4/5] bg-stone-100 rounded-2xl overflow-hidden mb-2">
            <img 
-             src={product.image || ASSETS.PRODUCT_RICE} 
+             src={product.image || ASSETS.PRODUCT_PLACEHOLDER} 
              alt={product.name} 
              className={cn(
                  "w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105", 
                  isSoldOut ? "grayscale opacity-60" : ""
              )}
-             onError={(e) => { (e.target as HTMLImageElement).src = ASSETS.PRODUCT_RICE }}
+             onError={(e) => { (e.target as HTMLImageElement).src = ASSETS.PRODUCT_PLACEHOLDER }}
            />
            
            {/* Badges */}
@@ -74,17 +87,30 @@ export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({
                        <button 
                          onClick={handleAdd}
                          disabled={isLoading}
-                         className="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-lg hover:bg-brand-500 hover:text-white transition-colors text-stone-900"
+                         className={cn(
+                             "h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-lg hover:bg-brand-500 hover:text-white transition-colors text-stone-900",
+                             isLoading && "opacity-70 cursor-wait"
+                         )}
                        >
-                           <Plus size={20} />
+                           <Plus size={20} className={isLoading ? "animate-pulse" : ""} />
                        </button>
                    ) : (
                        <div className="flex items-center bg-stone-900 text-white rounded-full p-1 shadow-xl gap-2">
-                           <button onClick={handleDecrement} className="h-8 w-8 flex items-center justify-center hover:bg-stone-700 rounded-full transition-colors">
+                           <button 
+                               onClick={handleDecrement} 
+                               disabled={isLoading}
+                               className="h-8 w-8 flex items-center justify-center hover:bg-stone-700 rounded-full transition-colors disabled:opacity-50"
+                           >
                                <Minus size={16} />
                            </button>
-                           <span className="font-mono font-bold text-sm w-4 text-center">{count}</span>
-                           <button onClick={handleAdd} className="h-8 w-8 flex items-center justify-center hover:bg-stone-700 rounded-full transition-colors">
+                           <span className="font-mono font-bold text-sm w-4 text-center">
+                               {isLoading ? "..." : count}
+                           </span>
+                           <button 
+                               onClick={handleAdd} 
+                               disabled={isLoading}
+                               className="h-8 w-8 flex items-center justify-center hover:bg-stone-700 rounded-full transition-colors disabled:opacity-50"
+                           >
                                <Plus size={16} />
                            </button>
                        </div>
@@ -103,7 +129,7 @@ export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({
            </div>
            <p className="text-stone-500 text-sm mt-1">{product.size} • {product.category}</p>
         </div>
-      </motion.div>
+      </MotionDiv>
   );
 });
 

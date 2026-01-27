@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { cn } from './utils';
+import { cn } from '../../lib/utils';
 import { Eye, EyeOff } from 'lucide-react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -24,20 +24,19 @@ export const Input: React.FC<InputProps> = ({ label, error, icon, helperText, cl
       )}
       <div className="relative group">
         {icon && (
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-stone-400 group-focus-within:text-stone-900 transition-colors z-10">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-stone-400 group-focus-within:text-brand-600 transition-colors z-10">
             {icon}
           </div>
         )}
         <input 
           type={inputType}
           className={cn(
-            "block w-full rounded-lg bg-white text-stone-900 placeholder:text-stone-400 font-medium transition-all duration-200",
-            "border border-stone-300 focus:border-stone-900",
-            "focus:outline-none focus:ring-2 focus:ring-stone-900/10",
+            "block w-full rounded-xl bg-white text-stone-900 placeholder:text-stone-400 font-medium transition-all duration-200",
+            "focus:outline-none focus:ring-2 focus:ring-brand-500/80",
             "h-12 shadow-sm",
-            icon ? 'pl-11 pr-4' : 'px-4',
+            icon ? 'pl-12 pr-4' : 'px-4',
             isPassword ? 'pr-12' : '',
-            error ? 'border-red-500 focus:border-red-500 focus:ring-red-100' : '',
+            error ? 'ring-2 ring-red-400 focus:ring-red-500' : 'bg-stone-50 focus:bg-white',
             className
           )}
           {...props}
@@ -53,10 +52,10 @@ export const Input: React.FC<InputProps> = ({ label, error, icon, helperText, cl
           </button>
         )}
       </div>
-      {error && <p className="mt-1.5 text-xs text-red-500 font-bold flex items-center gap-1">
+      {error && <p className="mt-1 text-xs text-red-600 font-bold flex items-center gap-1">
         {error}
       </p>}
-      {!error && helperText && <p className="mt-1.5 text-xs text-stone-500">{helperText}</p>}
+      {!error && helperText && <p className="mt-1 text-xs text-stone-500">{helperText}</p>}
     </div>
   );
 };

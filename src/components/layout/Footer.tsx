@@ -1,27 +1,7 @@
 
 import React from 'react';
 import { ASSETS } from '../../assets';
-
-const InstagramIcon = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-  </svg>
-);
-
-const FacebookIcon = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
-  </svg>
-);
-
-const XIcon = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M4 4l11.733 16h4.267l-11.733 -16z" />
-    <path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772" />
-  </svg>
-);
+import { Link } from '../ui/utils';
 
 interface FooterProps {
   onNavigate?: (view: string) => void;
@@ -30,9 +10,9 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onLegal }) => {
   const socialLinks = [
-    { icon: InstagramIcon, label: "Instagram" },
-    { icon: XIcon, label: "X (Twitter)" },
-    { icon: FacebookIcon, label: "Facebook" }
+    { iconClass: "bx bxl-instagram", label: "Instagram" },
+    { iconClass: "bx bxl-twitter", label: "X (Twitter)" },
+    { iconClass: "bx bxl-facebook", label: "Facebook" }
   ];
 
   return (
@@ -58,14 +38,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onLegal }) => {
               Bridging the gap between monthly needs and daily cashflow. Stock your pantry, pay small-small.
             </p>
             <div className="flex gap-4">
-               {socialLinks.map(({ icon: Icon, label }, i) => (
+               {socialLinks.map(({ iconClass, label }, i) => (
                   <a 
                     key={i} 
                     href="#" 
                     aria-label={label}
                     className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-brand-500 hover:text-white hover:border-brand-500 transition-all duration-300"
                   >
-                     <Icon size={18} />
+                     <i className={`${iconClass} text-xl`}></i>
                   </a>
                ))}
             </div>
@@ -75,10 +55,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onLegal }) => {
           <div className="md:col-span-4 md:col-start-6">
             <h4 className="font-serif font-medium text-white text-lg mb-6">Platform</h4>
             <ul className="space-y-4 text-sm font-medium">
-              <li><button onClick={() => onNavigate?.('ABOUT')} className="text-stone-400 hover:text-brand-500 transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">How it works</button></li>
-              <li><button onClick={() => onNavigate?.('SHOP')} className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Marketplace</button></li>
-              <li><button onClick={() => onNavigate?.('ABOUT')} className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Pricing Cycle</button></li>
-              <li><button onClick={() => onNavigate?.('HELP')} className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Partner with us</button></li>
+              <li><Link to="/about" className="text-stone-400 hover:text-brand-500 transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">How it works</Link></li>
+              <li><Link to="/shop" className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Marketplace</Link></li>
+              <li><Link to="/pricing" className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Pricing Cycle</Link></li>
+              <li><Link to="/partner" className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Partner with us</Link></li>
             </ul>
           </div>
 
@@ -86,9 +66,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onLegal }) => {
           <div className="md:col-span-2">
             <h4 className="font-serif font-medium text-white text-lg mb-6">Legal</h4>
             <ul className="space-y-4 text-sm font-medium">
-              <li><button onClick={() => onLegal?.('Privacy Policy')} className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Privacy Policy</button></li>
-              <li><button onClick={() => onLegal?.('Terms of Service')} className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Terms of Service</button></li>
-              <li><button onClick={() => onLegal?.('Refund Policy')} className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Refund Policy</button></li>
+              <li><button onClick={() => onLegal?.('Privacy Policy')} className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200 text-left">Privacy Policy</button></li>
+              <li><button onClick={() => onLegal?.('Terms of Service')} className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200 text-left">Terms of Service</button></li>
+              <li><button onClick={() => onLegal?.('Refund Policy')} className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200 text-left">Refund Policy</button></li>
             </ul>
           </div>
         </div>

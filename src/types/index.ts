@@ -70,8 +70,8 @@ export interface Transaction {
   id: string;
   date: string;
   amount: number;
-  type: 'PAYMENT' | 'SUBSCRIPTION';
-  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  type: 'PAYMENT' | 'SUBSCRIPTION' | 'REFUND';
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
 }
 
 export interface Basket {
@@ -84,6 +84,7 @@ export interface Basket {
   
   subtotal: number;
   serviceFee: number;
+  discount: number; // Added for coupon logic
   totalValue: number;
   amountPaid: number;
 
@@ -97,13 +98,42 @@ export interface Basket {
   // Delivery
   deliveryCode?: string;
   pickupTimestamp?: string;
+  
+  // Metadata for coupons
+  couponCode?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface Delivery {
+  id: string;
+  deliveryCode: string;
+  basketId: string;
+  userId: string;
+  fullName: string;
+  phone: string;
+  pickupPoint: string;
+  batchName: string;
+  status: 'READY' | 'COLLECTED';
+  lockedAt: string;
+  pickedUpAt?: string;
+  pickedUpBy?: string;
 }
 
 export interface SystemSettings {
   cycleName: string;
-  basketOpenDate: string;
-  basketLockDate: string;
-  deliveryDate: string;
+  // Main Dates for UI (Legacy Mapped)
+  basketOpenDate?: string | null; // mapped to paymentStartDate
+  basketLockDate?: string | null; // mapped to lockDate
+  deliveryDate?: string | null;
+  
+  // Granular Dates (Admin Freedom)
+  paymentStartDate?: string | null;
+  paymentEndDate?: string | null;
+  lockDate?: string | null;
+  unlockDate?: string | null;
+  bulkStartDate?: string | null;
+  bulkEndDate?: string | null;
+  
   isActive: boolean;
   basketServiceFeePercentage: number;
   topUpServiceFeePercentage: number;
@@ -118,9 +148,13 @@ export interface SystemSettings {
 export interface Cycle {
   id: string;
   name: string;
-  startDate: string;
-  endDate: string;
-  deliveryDate: string;
+  paymentStartDate?: string | null;
+  paymentEndDate?: string | null;
+  lockDate?: string | null;
+  unlockDate?: string | null;
+  bulkStartDate?: string | null;
+  bulkEndDate?: string | null;
+  deliveryDate?: string | null;
   isActive: boolean;
 }
 
@@ -164,4 +198,32 @@ export interface TopUpRequest {
   totalRepayable: number;
   status: 'PENDING' | 'APPROVED' | 'DENIED';
   denialReason?: string;
+}
+
+export interface AdminStats {
+    projectedRevenue: number;
+    collectedRevenue: number;
+    completionRate: number;
+    totalOrders: number;
+    avgOrderValue: number;
+    
+    // Charts Data
+    salesByCategory: { category: string; value: number; count: number }[];
+    revenueTrend: { date: string; amount: number }[]; // Last 7 days
+    topProducts: { name: string; sold: number; revenue: number }[];
+    statusBreakdown: Record<string, number>;
+}
+
+export interface Coupon {
+    id: string;
+    code: string;
+    associateName: string;
+    isActive: boolean;
+}
+
+export interface AssociateReport {
+    associateName: string;
+    couponCode: string;
+    month: string;
+    activeUsers: number;
 }

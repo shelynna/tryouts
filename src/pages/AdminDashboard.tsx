@@ -1,172 +1,252 @@
 
-import React, { useState, useEffect } from 'react';
-import { API } from '../lib/api';
-import { PickupListEntry, ProcurementItem, Product, SystemSettings, TopUpRequest, AdminBasketEntry } from '../types';
-import { Tabs, Button } from '../components/ui';
-import { LayoutDashboard, Settings, CheckSquare, Truck, ClipboardList, ShoppingCart, FileText, Users, Lock, PieChart } from 'lucide-react';
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useAdminData } from '../hooks/useAdminData';
+import { ASSETS } from '../assets';
+import { 
+  LayoutDashboard, ShoppingCart, Users, Truck, QrCode, 
+  Settings, FileText, Activity, LogOut, Grid, 
+  Package, ArrowUpCircle, X, Award
+} from 'lucide-react';
 import { OverviewTab } from '../components/dashboard/admin/OverviewTab';
+import { OrdersTab } from '../components/dashboard/admin/OrdersTab';
 import { ProductsTab } from '../components/dashboard/admin/ProductsTab';
-import { CycleTab } from '../components/dashboard/admin/CycleTab';
-import { ContentTab } from '../components/dashboard/admin/ContentTab';
+import { UsersTab } from '../components/dashboard/admin/UsersTab';
+import { DeliveriesTab } from '../components/dashboard/admin/DeliveriesTab';
+import { PickupTab } from '../components/dashboard/admin/PickupTab';
 import { TopUpsTab } from '../components/dashboard/admin/TopUpsTab';
 import { ProcurementTab } from '../components/dashboard/admin/ProcurementTab';
-import { PickupTab } from '../components/dashboard/admin/PickupTab';
-import { UsersTab } from '../components/dashboard/admin/UsersTab';
-import { OrdersTab } from '../components/dashboard/admin/OrdersTab';
-import { useAuth } from '../context/AuthContext';
+import { CycleTab } from '../components/dashboard/admin/CycleTab';
+import { ContentTab } from '../components/dashboard/admin/ContentTab';
+import { SystemLogsTab } from '../components/dashboard/admin/SystemLogsTab';
+import { AssociatesTab } from '../components/dashboard/admin/AssociatesTab';
+import { API } from '../lib/api';
+import { Button, Modal } from '../components/ui';
+import { cn } from '../lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
-interface AdminDashboardProps {
-    onAction?: (msg: string, type: 'success' | 'error' | 'info') => void;
-}
+const MotionDiv = motion.div as any;
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onAction }) => {
-  const { isAdmin, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState('OVERVIEW');
-  const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [topUps, setTopUps] = useState<TopUpRequest[]>([]);
-  const [procurementList, setProcurementList] = useState<ProcurementItem[]>([]);
-  const [pickupList, setPickupList] = useState<PickupListEntry[]>([]);
-  const [allOrders, setAllOrders] = useState<AdminBasketEntry[]>([]);
-  const [pickupFilter, setPickupFilter] = useState<string>('ALL');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [financials, setFinancials] = useState({ projectedRevenue: 0, collectedRevenue: 0, completionRate: 0 });
-  
-  // Helper for notifications
-  const notify = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
-      if (onAction) onAction(msg, type);
-      else alert(msg);
-  };
+const TABS = [
+  { id: 'OVERVIEW', label: 'Overview', icon: LayoutDashboard },
+  { id: 'ORDERS', label: 'Orders', icon: ShoppingCart },
+  { id: 'PRODUCTS', label: 'Inventory', icon: Package },
+  { id: 'USERS', label: 'Users', icon: Users },
+  { id: 'ASSOCIATES', label: 'Associates', icon: Award },
+  { id: 'TOPUPS', label: 'Top-Ups', icon: ArrowUpCircle },
+  { id: 'PROCUREMENT', label: 'Procurement', icon: Grid },
+  { id: 'DELIVERIES', label: 'Dispatch', icon: Truck },
+  { id: 'PICKUP', label: 'Quick Scan', icon: QrCode },
+  { id: 'CYCLE', label: 'Cycle Config', icon: Settings },
+  { id: 'CONTENT', label: 'Content', icon: FileText },
+  { id: 'LOGS', label: 'System Logs', icon: Activity },
+];
 
-  useEffect(() => { 
-      if (isAdmin) refreshAdminData(); 
-  }, [activeTab, pickupFilter, isAdmin]);
+export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => void }> = ({ onAction }) => {
+    const { logout, isAdmin } = useAuth();
+    const { 
+        settings, products, topUps, procurementList, allOrders, stats, 
+        refreshAdminData, isLoading 
+    } = useAdminData(isAdmin);
 
-  const refreshAdminData = async () => {
-      try {
-        const settingsData = await API.getSettings();
-        setSettings(settingsData);
+    const [activeTab, setActiveTab] = useState('OVERVIEW');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
-        const stats = await API.getAdminStats();
-        setFinancials(stats);
+    if (isLoading && !settings) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-stone-50 gap-4">
+                <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-stone-500 text-sm font-bold uppercase tracking-widest">Loading Console...</p>
+            </div>
+        );
+    }
 
-        if (activeTab === 'PRODUCTS') setProducts(await API.getProducts({ isAdmin: true }));
-        if (activeTab === 'ORDERS') setAllOrders(await API.getAllBaskets());
-        if (activeTab === 'PROCUREMENT') setProcurementList(await API.getProcurementList());
-        if (activeTab === 'PICKUP') setPickupList(await API.getPickupList(pickupFilter === 'ALL' ? undefined : pickupFilter));
-        if (activeTab === 'TOPUPS') setTopUps(await API.getTopUpRequests());
-      } catch (e) {
-          console.error("Failed to load admin data", e);
-      }
-  };
+    const renderContent = () => {
+        switch(activeTab) {
+            case 'OVERVIEW': return <OverviewTab stats={stats} />;
+            case 'ORDERS': return <OrdersTab orders={allOrders} />;
+            case 'PRODUCTS': return <ProductsTab products={products} settings={settings!} refreshAdminData={refreshAdminData} notify={onAction} />;
+            case 'USERS': return <UsersTab />;
+            case 'ASSOCIATES': return <AssociatesTab />;
+            case 'DELIVERIES': return <DeliveriesTab />;
+            case 'PICKUP': return <PickupTab />;
+            case 'TOPUPS': return <TopUpsTab topUps={topUps} refreshAdminData={refreshAdminData} notify={onAction} />;
+            case 'PROCUREMENT': return <ProcurementTab procurementList={procurementList} />;
+            case 'CYCLE': return <CycleTab settings={settings!} onSave={async (s) => { try { await API.saveSettings(s); refreshAdminData(); onAction("Settings saved", "success"); } catch(e: any) { onAction(e.message, "error"); } }} />;
+            case 'CONTENT': return <ContentTab settings={settings!} onSave={async (s) => { try { await API.saveSettings(s); refreshAdminData(); onAction("Content saved", "success"); } catch(e: any) { onAction(e.message, "error"); } }} />;
+            case 'LOGS': return <SystemLogsTab />;
+            default: return <OverviewTab stats={stats} />;
+        }
+    };
 
-  const handleSaveSettings = async (newSettings: SystemSettings) => {
-      try {
-          await API.saveSettings(newSettings);
-          setSettings(newSettings);
-          notify("Settings & Content Published Successfully!", "success");
-      } catch (e: any) {
-          notify(e.message || "Failed to save settings", "error");
-      }
-  };
+    return (
+        <div className="min-h-screen bg-[#F5F5F7] font-sans flex flex-col lg:flex-row">
+            {/* Modal for Logout */}
+            <Modal
+                isOpen={isLogoutConfirmOpen}
+                onClose={() => setIsLogoutConfirmOpen(false)}
+                title="Sign Out"
+                size="sm"
+                footer={
+                    <>
+                        <Button variant="ghost" onClick={() => setIsLogoutConfirmOpen(false)}>Cancel</Button>
+                        <Button variant="danger" onClick={logout}>Confirm Sign Out</Button>
+                    </>
+                }
+            >
+                <p className="text-stone-600">Are you sure you want to sign out of the Admin Console?</p>
+            </Modal>
 
-  if (isLoading) return <div className="p-20 text-center text-stone-400">Verifying privileges...</div>;
-  
-  // Security Guard
-  if (!isAdmin) {
-      return (
-          <div className="min-h-[60vh] flex flex-col items-center justify-center p-4 text-center">
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
-                  <Lock size={32} />
-              </div>
-              <h2 className="text-2xl font-bold text-stone-900 mb-2">Access Denied</h2>
-              <p className="text-stone-500 max-w-md">You do not have permission to view the administrative console. Please return to the user dashboard.</p>
-              <Button onClick={() => window.location.reload()} className="mt-6">Return Home</Button>
-          </div>
-      );
-  }
-
-  const tabs = [
-    { id: 'OVERVIEW', label: 'Dashboard', icon: <LayoutDashboard size={16}/> },
-    { id: 'ORDERS', label: 'Active Orders', icon: <PieChart size={16}/> }, // NEW
-    { id: 'PICKUP', label: 'Distribution', icon: <ClipboardList size={16}/> },
-    { id: 'PRODUCTS', label: 'Catalogue', icon: <ShoppingCart size={16}/> },
-    { id: 'USERS', label: 'Users', icon: <Users size={16}/> },
-    { id: 'PROCUREMENT', label: 'Procurement', icon: <Truck size={16}/> },
-    { id: 'TOPUPS', label: 'Top-Ups', icon: <CheckSquare size={16}/> },
-    { id: 'CYCLE', label: 'Config', icon: <Settings size={16}/> },
-    { id: 'CONTENT', label: 'Content', icon: <FileText size={16}/> },
-  ];
-
-  if (!settings) return <div className="p-20 text-center text-stone-400 animate-pulse">Initializing System Control...</div>;
-
-  return (
-      <div className="pt-4 pb-20 max-w-7xl mx-auto px-4 md:px-6 space-y-10 animate-in fade-in duration-700 font-sans">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6 border-b border-stone-200 pb-8">
-             <div>
-                <div className="flex items-center gap-3 mb-2">
-                    <span className="px-3 py-1 rounded-full bg-stone-900 text-white text-[10px] font-bold uppercase tracking-widest">Administrator</span>
-                    <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Live
-                    </span>
-                </div>
-                <h1 className="text-3xl md:text-4xl font-serif font-bold text-brand-900 tracking-tight">System Control</h1>
-             </div>
-          </div>
-          
-          <Tabs activeId={activeTab} onChange={setActiveTab} items={tabs} />
-
-          <div className="mt-8">
-              {activeTab === 'OVERVIEW' && (
-                  <OverviewTab financials={financials} />
-              )}
-
-              {activeTab === 'ORDERS' && (
-                  <OrdersTab orders={allOrders} />
-              )}
-
-              {activeTab === 'USERS' && (
-                  <UsersTab />
-              )}
-
-              {activeTab === 'CONTENT' && (
-                  <ContentTab settings={settings} onSave={handleSaveSettings} />
-              )}
-
-              {activeTab === 'CYCLE' && (
-                  <CycleTab settings={settings} onSave={handleSaveSettings} />
-              )}
+            {/* =======================
+                MOBILE HEADERS (STACKED)
+               ======================= */}
             
-            {activeTab === 'TOPUPS' && (
-                <TopUpsTab 
-                    topUps={topUps}
-                    onApprove={() => {
-                        if(confirm("Approve this request?")) notify("Approval logic would run here.", "info");
-                    }}
-                    onDeny={() => notify("Denial logic would run here.", "info")}
-                />
-            )}
+            {/* 1. Brand Top Bar (Fixed) */}
+            <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-stone-900 px-5 py-3 h-[52px] flex items-center justify-between shadow-md">
+                <div className="flex items-center gap-2">
+                    <img src={ASSETS.LOGO_WHITE} alt="SMM" className="h-6 w-auto opacity-90" />
+                    <span className="font-heading font-bold text-lg tracking-tight text-white">SMM.</span>
+                </div>
+            </div>
 
-              {activeTab === 'PRODUCTS' && (
-                 <ProductsTab 
-                    products={products}
-                    settings={settings}
-                    refreshAdminData={refreshAdminData}
-                    notify={notify}
-                 />
-              )}
+            {/* 2. Controls Sub-Header (Fixed below Brand) */}
+            <header className="lg:hidden fixed top-[52px] left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-b border-stone-200 px-5 py-3 h-[68px] flex items-center justify-between shadow-sm">
+                <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                        <h1 className="text-lg font-bold text-stone-900 leading-none">
+                            {TABS.find(t => t.id === activeTab)?.label}
+                        </h1>
+                        {activeTab === 'TOPUPS' && topUps.length > 0 && (
+                            <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">{topUps.length}</span>
+                        )}
+                    </div>
+                    <p className="text-[10px] text-stone-400 uppercase tracking-widest font-bold">Console</p>
+                </div>
+                <button 
+                    onClick={() => setIsMobileMenuOpen(true)}
+                    className="p-2.5 bg-stone-100 rounded-full text-stone-600 hover:bg-stone-200 active:scale-95 transition-all border border-stone-200"
+                >
+                    <Grid size={20} />
+                </button>
+            </header>
 
-              {activeTab === 'PROCUREMENT' && (
-                 <ProcurementTab procurementList={procurementList} />
-              )}
+            {/* Mobile Menu Dropdown (Replaces Drawer) */}
+            <AnimatePresence>
+                {isMobileMenuOpen && (
+                    <>
+                        {/* Backdrop */}
+                        <MotionDiv
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="fixed inset-0 z-[60] bg-stone-900/60 backdrop-blur-sm lg:hidden"
+                        />
+                        
+                        {/* Dropdown Panel */}
+                        <MotionDiv
+                            initial={{ y: '-100%' }}
+                            animate={{ y: 0 }}
+                            exit={{ y: '-100%' }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="fixed top-0 left-0 right-0 z-[70] bg-white rounded-b-[32px] shadow-2xl overflow-hidden lg:hidden flex flex-col max-h-[85vh]"
+                        >
+                             {/* Header in Menu */}
+                             <div className="px-6 py-5 flex items-center justify-between border-b border-stone-100">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">Menu</span>
+                                </div>
+                                <button onClick={() => setIsMobileMenuOpen(false)} className="w-10 h-10 rounded-full bg-stone-100 text-stone-500 flex items-center justify-center hover:bg-stone-200 cursor-pointer">
+                                    <X size={20} />
+                                </button>
+                             </div>
 
-              {activeTab === 'PICKUP' && (
-                 <PickupTab 
-                    pickupList={pickupList} 
-                    pickupFilter={pickupFilter} 
-                    onFilterChange={setPickupFilter} 
-                 />
-              )}
-          </div>
-      </div>
-  );
+                             {/* Grid Content */}
+                             <div className="p-6 grid grid-cols-3 gap-3 overflow-y-auto">
+                                {TABS.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => { setActiveTab(tab.id); setIsMobileMenuOpen(false); }}
+                                        className={cn(
+                                            "flex flex-col items-center justify-center p-3 rounded-2xl border transition-all active:scale-95 aspect-square relative",
+                                            activeTab === tab.id 
+                                                ? "bg-brand-50 border-brand-200 text-brand-700 shadow-sm" 
+                                                : "bg-white border-stone-100 shadow-sm text-stone-600 hover:border-stone-200"
+                                        )}
+                                    >
+                                        <tab.icon size={24} className={cn("mb-2", activeTab === tab.id ? "text-brand-600" : "text-stone-400")} />
+                                        <span className="font-bold text-[10px] uppercase tracking-wide text-center leading-tight">{tab.label}</span>
+                                        
+                                        {/* Badge for TopUps */}
+                                        {tab.id === 'TOPUPS' && topUps.length > 0 && (
+                                            <span className="absolute top-2 right-2 bg-red-500 text-white text-[9px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white">{topUps.length}</span>
+                                        )}
+                                    </button>
+                                ))}
+                             </div>
+                             
+                             {/* Footer Actions */}
+                             <div className="p-6 border-t border-stone-100 bg-stone-50/50">
+                                <button 
+                                    onClick={() => { setIsMobileMenuOpen(false); setIsLogoutConfirmOpen(true); }}
+                                    className="w-full flex items-center justify-center gap-2 py-3 text-red-500 font-bold bg-white border border-red-100 rounded-xl hover:bg-red-50 transition-colors shadow-sm"
+                                >
+                                    <LogOut size={18} /> Sign Out
+                                </button>
+                             </div>
+                        </MotionDiv>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* Desktop Sidebar */}
+            <aside className="hidden lg:flex w-64 h-screen sticky top-0 flex-col bg-stone-900 text-stone-400 border-r border-stone-800 shrink-0">
+                <div className="p-6 flex items-center gap-3 mb-6">
+                    <img src={ASSETS.LOGO_WHITE} alt="SMM" className="h-8 w-auto opacity-90" />
+                    <div>
+                        <h1 className="font-heading font-bold text-white text-lg leading-none">SMM.</h1>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-brand-500">Admin</span>
+                    </div>
+                </div>
+
+                <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
+                    {TABS.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={cn(
+                                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium",
+                                activeTab === tab.id 
+                                    ? "bg-brand-600 text-white shadow-lg shadow-brand-900/50" 
+                                    : "hover:bg-white/5 hover:text-white"
+                            )}
+                        >
+                            <tab.icon size={18} />
+                            {tab.label}
+                            {tab.id === 'TOPUPS' && topUps.length > 0 && (
+                                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{topUps.length}</span>
+                            )}
+                        </button>
+                    ))}
+                </nav>
+
+                <div className="p-4 border-t border-white/5">
+                    <button 
+                        onClick={() => setIsLogoutConfirmOpen(true)}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-white/5 rounded-lg transition-colors"
+                    >
+                        <LogOut size={18} /> Sign Out
+                    </button>
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <main className="flex-1 min-w-0 pt-[120px] lg:pt-0">
+                <div className="h-full px-4 py-6 md:px-8 md:py-8 max-w-7xl mx-auto">
+                    {renderContent()}
+                </div>
+            </main>
+        </div>
+    );
 };

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { cn } from './utils';
+import { cn } from '../../lib/utils';
 import { ChevronDown } from 'lucide-react';
 
 export const Select: React.FC<{ label?: string; options: { label: string; value: string }[]; className?: string; error?: string; [key: string]: any }> = ({ label, options, className = '', error, ...props }) => {
@@ -14,8 +14,8 @@ export const Select: React.FC<{ label?: string; options: { label: string; value:
       <div className="relative group">
         <select 
           className={cn(
-            "appearance-none w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-stone-900 font-medium focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 transition-all cursor-pointer h-12 shadow-sm",
-            error ? 'border-red-300 ring-red-100' : '',
+            "appearance-none w-full rounded-xl bg-white px-4 py-3 text-stone-900 font-medium focus:ring-2 focus:ring-brand-500/80 focus:outline-none transition-all cursor-pointer h-12 shadow-sm",
+            error ? 'ring-1 ring-red-400' : 'bg-stone-50 focus:bg-white',
             className
           )}
           {...props}

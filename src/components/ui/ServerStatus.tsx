@@ -1,10 +1,12 @@
+
 import React, { useEffect, useState } from 'react';
 import { API } from '../../lib/api';
 import { Wifi, WifiOff } from 'lucide-react';
-import { cn } from './utils';
+import { cn } from '../../lib/utils';
 
 export const ServerStatus: React.FC = () => {
-    const [status, setStatus] = useState<'ONLINE' | 'OFFLINE' | 'CHECKING'>('CHECKING');
+    // Default to ONLINE to avoid visual noise on load. Only show if confirmed OFFLINE.
+    const [status, setStatus] = useState<'ONLINE' | 'OFFLINE'>('ONLINE');
 
     useEffect(() => {
         const check = async () => {
@@ -12,21 +14,27 @@ export const ServerStatus: React.FC = () => {
             setStatus(isOnline ? 'ONLINE' : 'OFFLINE');
         };
         
-        check();
+        // Delay first check slightly to let app settle
+        const timer = setTimeout(check, 2000);
+        
         // Check periodically
         const interval = setInterval(check, 30000); 
-        return () => clearInterval(interval);
+        
+        return () => {
+            clearTimeout(timer);
+            clearInterval(interval);
+        };
     }, []);
 
-    if (status === 'ONLINE') return null; // Don't show anything if healthy
+    if (status === 'ONLINE') return null;
 
     return (
         <div className={cn(
-            "fixed bottom-4 right-4 z-[9999] px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs font-bold transition-all",
-            status === 'OFFLINE' ? "bg-red-500 text-white animate-pulse" : "bg-stone-200 text-stone-500"
+            "fixed bottom-4 right-4 z-[10000] px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs font-bold transition-all",
+            "bg-red-500 text-white animate-pulse"
         )}>
-            {status === 'OFFLINE' ? <WifiOff size={14} /> : <Wifi size={14} />}
-            {status === 'OFFLINE' ? "Server Unreachable" : "Connecting..."}
+            <WifiOff size={14} />
+            Server Unreachable
         </div>
     );
 };

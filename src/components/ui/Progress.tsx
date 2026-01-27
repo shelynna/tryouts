@@ -1,7 +1,10 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { cn } from './utils';
+import { cn } from '../../lib/utils';
+
+const MotionDiv = motion.div as any;
+const MotionCircle = motion.circle as any;
 
 export const ProgressRing: React.FC<{ 
   progress: number, 
@@ -32,7 +35,7 @@ export const ProgressRing: React.FC<{
           cx={size / 2}
           cy={size / 2}
         />
-        <motion.circle
+        <MotionCircle
           className={progressColor}
           strokeWidth={stroke}
           strokeDasharray={circumference}
@@ -56,7 +59,7 @@ export const ProgressRing: React.FC<{
 
 export const ProgressBar: React.FC<{ progress: number; className?: string; barClassName?: string }> = ({ progress, className = '', barClassName = "bg-brand-900" }) => (
   <div className={cn("w-full bg-stone-100 rounded-full h-1.5 overflow-hidden", className)}>
-    <motion.div 
+    <MotionDiv 
       className={cn("h-full transition-all duration-700 ease-out", barClassName)} 
       initial={{ width: 0 }}
       animate={{ width: `${Math.min(100, Math.max(0, progress))}%` }}

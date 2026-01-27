@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { ASSETS } from '../../assets';
 import { ArrowLeft, Star } from 'lucide-react';
 
+const MotionDiv = motion.div as any;
+
 interface AuthLayoutProps {
   children: React.ReactNode;
   title: string;
@@ -31,12 +33,20 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
     <div className="min-h-screen flex bg-white font-sans selection:bg-brand-200 selection:text-brand-900">
       
       {/* LEFT COLUMN - Visual & Branding (Hidden on mobile) */}
-      <div className="hidden lg:flex w-1/2 bg-brand-900 relative overflow-hidden flex-col justify-between p-16 text-white">
-        {/* Background Texture/Image */}
-        <div className="absolute inset-0 opacity-20 mix-blend-overlay">
-           <img src={ASSETS.AUTH_BG_PATTERN} className="w-full h-full object-cover" alt="Pattern" />
+      <div className="hidden lg:flex w-1/2 relative overflow-hidden flex-col justify-between p-16 text-white">
+        {/* Background Image & Gradient */}
+        <div className="absolute inset-0">
+           <img 
+             src={ASSETS.LANDING_HERO_BG} 
+             className="w-full h-full object-cover" 
+             alt="Background" 
+           />
+           <div className="absolute inset-0 bg-brand-900/95"></div>
+           <div 
+             className="absolute inset-0 opacity-10"
+             style={{ backgroundImage: `url(${ASSETS.AUTH_BG_PATTERN})` }}
+           ></div>
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-950/80 to-transparent"></div>
 
         {/* Brand */}
         <div className="relative z-10">
@@ -51,23 +61,23 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
            <div className="flex gap-1 text-amber-400 mb-6">
               {[1,2,3,4,5].map(i => <Star key={i} size={20} fill="currentColor" />)}
            </div>
-           <blockquote className="text-3xl font-serif leading-tight mb-6">
+           <blockquote className="text-2xl font-serif leading-relaxed mb-6 text-white/90">
              "{testimonial.quote}"
            </blockquote>
            <div>
              <p className="font-bold text-lg">{testimonial.author}</p>
-             <p className="text-brand-300">{testimonial.role}</p>
+             <p className="text-brand-200 font-medium">{testimonial.role}</p>
            </div>
         </div>
 
         {/* Footer */}
-        <div className="relative z-10 text-xs text-brand-400/60 uppercase tracking-widest font-medium">
+        <div className="relative z-10 text-xs text-white/60 uppercase tracking-widest font-medium">
            © {new Date().getFullYear()} Smart Monthly Living
         </div>
       </div>
 
       {/* RIGHT COLUMN - Form Content */}
-      <div className="w-full lg:w-1/2 flex flex-col relative bg-stone-50/50">
+      <div className="w-full lg:w-1/2 flex flex-col relative bg-white">
         
         {/* Mobile Header / Back Button */}
         <div className="p-6 lg:p-12 flex justify-between items-center">
@@ -76,7 +86,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
                   onClick={onBack} 
                   className="flex items-center gap-2 text-stone-500 hover:text-stone-900 transition-colors text-sm font-bold group"
                 >
-                    <div className="w-8 h-8 rounded-full bg-white border border-stone-200 flex items-center justify-center group-hover:border-stone-400">
+                    <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center group-hover:bg-stone-200 transition-colors">
                         <ArrowLeft size={14} />
                     </div>
                     Back to Home
@@ -90,7 +100,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 
         {/* Scrollable Form Area */}
         <div className="flex-1 flex items-center justify-center p-6 sm:p-12 md:px-20 overflow-y-auto">
-           <motion.div 
+           <MotionDiv 
              initial={{ opacity: 0, y: 20 }}
              animate={{ opacity: 1, y: 0 }}
              transition={{ duration: 0.5 }}
@@ -102,7 +112,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
               </div>
 
               {children}
-           </motion.div>
+           </MotionDiv>
         </div>
       </div>
     </div>

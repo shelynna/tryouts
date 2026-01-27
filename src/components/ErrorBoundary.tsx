@@ -1,7 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { API } from '../lib/api';
 import { Button } from './ui/Button';
-import { WifiOff } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -12,9 +12,10 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = {
-    hasError: false
-  };
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
 
   public static getDerivedStateFromError(_: Error): ErrorBoundaryState {
     return { hasError: true };
@@ -35,15 +36,24 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-stone-50 p-6 text-center">
-          <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-6">
-             <WifiOff size={32} />
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-stone-50 p-6 text-center animate-in fade-in duration-300">
+          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full border border-stone-100">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+               <AlertTriangle size={32} strokeWidth={1.5} />
+            </div>
+            <h1 className="text-2xl font-serif font-bold text-stone-900 mb-3">Something went wrong</h1>
+            <p className="text-stone-500 mb-8 text-sm leading-relaxed">
+              We encountered an unexpected issue. Our engineering team has been notified automatically.
+            </p>
+            <div className="flex flex-col gap-3">
+              <Button onClick={() => window.location.reload()} size="lg" className="w-full shadow-lg shadow-brand-900/10">
+                <RefreshCw size={18} className="mr-2" /> Reload Application
+              </Button>
+              <Button variant="ghost" onClick={() => { window.localStorage.clear(); window.location.reload(); }} size="sm" className="text-stone-400 hover:text-red-500">
+                Clear Cache & Restart
+              </Button>
+            </div>
           </div>
-          <h1 className="text-2xl font-serif font-bold text-stone-900 mb-2">Something went wrong</h1>
-          <p className="text-stone-500 mb-8 max-w-md">
-            Our engineering team has been notified automatically. Please try refreshing the page.
-          </p>
-          <Button onClick={() => window.location.reload()}>Refresh Page</Button>
         </div>
       );
     }

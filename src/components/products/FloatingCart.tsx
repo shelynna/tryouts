@@ -1,20 +1,31 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
 import { useBasket } from '../../context/BasketContext';
 
+const MotionDiv = motion.div as any;
+
 export const FloatingCart: React.FC<{ itemCount: number; isLocked: boolean }> = ({ itemCount, isLocked }) => {
   const { openCart } = useBasket();
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
       <AnimatePresence>
         {itemCount > 0 && !isLocked && (
-          <motion.div 
+          <MotionDiv 
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             exit={{ y: 100 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40"
+            className="fixed bottom-24 lg:bottom-8 left-1/2 -translate-x-1/2 z-[9990]"
           >
              <button 
                 onClick={openCart}
@@ -25,8 +36,9 @@ export const FloatingCart: React.FC<{ itemCount: number; isLocked: boolean }> = 
                    <ShoppingBag size={16} />
                 </div>
              </button>
-          </motion.div>
+          </MotionDiv>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
   );
 };

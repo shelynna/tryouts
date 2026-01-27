@@ -1,20 +1,21 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# Sɔ ME MU (SMM)
 
-This contains everything you need to run your app locally.
+**Smart Monthly Living** - A student-focused grocery installment platform.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1T4dOtNrCR6fHpTTRU-5qVU9e_94gTuO-
+## Getting Started
 
-## Run Locally
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-**Prerequisites:**  Node.js
+2. **Setup Environment:**
+   Copy `.env.example` (if available) or create `.env` with your Supabase and Paystack keys.
 
+3. **Run locally:**
+   ```bash
+   npm run dev
+   ```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+For detailed documentation, please refer to [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md).

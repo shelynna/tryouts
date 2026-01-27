@@ -8,7 +8,7 @@ export const HelpPage: React.FC<{ onBack: () => void }> = ({ onBack }) => (
     
     {/* Anchored Header */}
     <div className="text-center max-w-2xl mx-auto mb-16">
-      <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-2xl shadow-sm border border-stone-100 mb-6 text-brand-600">
+      <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-2xl shadow-sm mb-6 text-brand-600">
           <HelpCircle size={24} />
       </div>
       <h1 className="text-4xl md:text-5xl font-serif text-brand-900 mb-4 tracking-tight leading-tight">Support Center</h1>
@@ -17,7 +17,7 @@ export const HelpPage: React.FC<{ onBack: () => void }> = ({ onBack }) => (
 
     {/* Anchored Cards with stronger shadow/border for separation from background */}
     <div className="grid md:grid-cols-2 gap-6 mb-12">
-      <Card className="flex flex-col items-center text-center p-10 border border-stone-200 shadow-xl hover:shadow-2xl transition-all duration-300 bg-white group">
+      <Card className="flex flex-col items-center text-center p-10 shadow-xl hover:shadow-2xl transition-all duration-300 bg-white group">
         <div className="w-16 h-16 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
             <MessageSquare size={32} />
         </div>
@@ -26,7 +26,7 @@ export const HelpPage: React.FC<{ onBack: () => void }> = ({ onBack }) => (
         <Button variant="outline" fullWidth className="mt-auto border-stone-300 hover:border-brand-500 hover:text-brand-900">Launch Chat</Button>
       </Card>
       
-      <Card className="flex flex-col items-center text-center p-10 border border-stone-200 shadow-xl hover:shadow-2xl transition-all duration-300 bg-white group">
+      <Card className="flex flex-col items-center text-center p-10 shadow-xl hover:shadow-2xl transition-all duration-300 bg-white group">
         <div className="w-16 h-16 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
             <PhoneCall size={32} />
         </div>
@@ -37,8 +37,8 @@ export const HelpPage: React.FC<{ onBack: () => void }> = ({ onBack }) => (
     </div>
 
     {/* FAQ Section Anchored */}
-    <Card className="p-8 md:p-12 border border-stone-200 shadow-lg bg-white">
-      <h2 className="text-2xl font-serif text-brand-900 mb-8 flex items-center gap-3 pb-4 border-b border-stone-100">
+    <Card className="p-8 md:p-12 shadow-lg bg-white">
+      <h2 className="text-2xl font-serif text-brand-900 mb-8 flex items-center gap-3">
           Frequently Asked Questions
       </h2>
       <div className="space-y-8">

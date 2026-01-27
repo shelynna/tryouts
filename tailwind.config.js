@@ -10,17 +10,17 @@ export default {
     extend: {
       colors: {
         brand: {
-          50: '#F2F9F9',
-          100: '#DDEFF0',
-          200: '#BDE0E2',
-          300: '#8CCCD0',
-          400: '#55B3B8',
-          500: '#2A9D8F', // Refined Teal - Sophisticated
-          600: '#228377',
-          700: '#1C675E',
-          800: '#17524C',
-          900: '#134440',
-          950: '#0A2826',
+          50: '#F0F9F4',
+          100: '#D1EAD9',
+          200: '#A3D7B5',
+          300: '#75C491',
+          400: '#47B16D',
+          500: '#27AE60', // Primary Green from Revamped Design
+          600: '#1E8B4D',
+          700: '#16683A',
+          800: '#0E4526',
+          900: '#062313',
+          950: '#020F08',
         },
         stone: {
           50: '#F9FAFB',
@@ -32,22 +32,21 @@ export default {
           600: '#4B5563',
           700: '#374151',
           800: '#1F2937',
-          900: '#111827', // Deep Charcoal for text
+          900: '#111827',
         },
         accent: {
-          500: '#E76F51', // Burnt Orange for CTAs
+          500: '#E76F51',
           600: '#D65A3B',
         }
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        serif: ['Playfair Display', 'Georgia', 'serif'], // Swapped to Playfair for Editorial look
+        heading: ['Poppins', 'sans-serif'], 
         mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
         'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
         'medium': '0 10px 40px -10px rgba(0, 0, 0, 0.08)',
-        'hard': '4px 4px 0px 0px rgba(0,0,0,1)', // Brutalist touch option
       },
       borderRadius: {
         'xl': '12px',
@@ -58,6 +57,7 @@ export default {
       animation: {
         'fade-in-up': 'fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'scale-in': 'scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'marquee': 'marquee 40s linear infinite',
       },
       keyframes: {
         fadeInUp: {
@@ -67,7 +67,11 @@ export default {
         scaleIn: {
           '0%': { opacity: '0', transform: 'scale(0.95)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
-        }
+        },
+        marquee: {
+          '0%': { transform: 'translateX(0%)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
       }
     },
   },

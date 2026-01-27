@@ -14,15 +14,12 @@ export const ASSETS = {
   FEATURES_BG: "/assets/images/hero/features.jpg",
   
   // Logos
-  // UPDATED: Using 'icontextlogo' for main branding
   LOGO: "/assets/icons/icontextlogo.png",
-  LOGO_WHITE: "/assets/icons/icontextlogo.png", // Using the same file as white logo isn't provided, assuming it works or use icontextlogo
+  LOGO_WHITE: "/assets/icons/icontextlogo.png",
+  LOGO_ICON: "/assets/icons/logo-icon.png",
   
   // Products
-  PRODUCT_RICE: '/assets/images/products/rice.jpg',
-  PRODUCT_OIL: '/assets/images/products/oil.jpg',
-  PRODUCT_CANNED: '/assets/images/products/canned.jpg',
-  PRODUCT_NOODLES: '/assets/images/products/noodles.jpg',
+  PRODUCT_PLACEHOLDER: '/assets/images/products/rice.jpg', // Using rice as a generic placeholder
   
   // UI Elements
   AVATAR_PLACEHOLDER: "/assets/images/ui/avatar_placeholder.png",

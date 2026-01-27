@@ -1,17 +1,41 @@
 
 import React from 'react';
-import { Card, Badge } from '../../ui';
+import { Card, Badge, Button } from '../../ui';
 import { TopUpRequest } from '../../../types';
 import { formatCurrency } from '../../../lib/utils';
 import { CheckCircle, XCircle } from 'lucide-react';
+import { API } from '../../../lib/api';
 
 interface TopUpsTabProps {
     topUps: TopUpRequest[];
-    onApprove: (id: string) => void;
-    onDeny: (id: string) => void;
+    refreshAdminData: () => void;
+    notify: (msg: string, type?: any) => void;
 }
 
-export const TopUpsTab: React.FC<TopUpsTabProps> = ({ topUps, onApprove, onDeny }) => {
+export const TopUpsTab: React.FC<TopUpsTabProps> = ({ topUps, refreshAdminData, notify }) => {
+
+    const handleApprove = async (id: string) => {
+        if (!confirm("Approve this top-up request? This will mark the basket as fully paid.")) return;
+        try {
+            await API.approveTopUp(id);
+            notify("Top-up approved successfully.", "success");
+            refreshAdminData();
+        } catch(e: any) {
+            notify(e.message || "Failed to approve.", "error");
+        }
+    }
+
+    const handleDeny = async (id: string) => {
+        if (!confirm("Deny this top-up request?")) return;
+        try {
+            await API.denyTopUp(id);
+            notify("Top-up request denied.", "info");
+            refreshAdminData();
+        } catch(e: any) {
+            notify(e.message || "Failed to deny.", "error");
+        }
+    }
+
     return (
         <Card noPadding>
             <div className="p-6 border-b border-stone-100 bg-stone-50/30">
@@ -41,8 +65,8 @@ export const TopUpsTab: React.FC<TopUpsTabProps> = ({ topUps, onApprove, onDeny 
                                 <td className="px-6 py-4 text-center">
                                     {req.status === 'PENDING' && (
                                         <div className="flex justify-center gap-2">
-                                            <button onClick={() => onApprove(req.id)} className="text-emerald-600 hover:bg-emerald-50 p-1 rounded"><CheckCircle size={18}/></button>
-                                            <button onClick={() => onDeny(req.id)} className="text-red-600 hover:bg-red-50 p-1 rounded"><XCircle size={18}/></button>
+                                            <button onClick={() => handleApprove(req.basketId)} className="text-emerald-600 hover:bg-emerald-50 p-1 rounded"><CheckCircle size={18}/></button>
+                                            <button onClick={() => handleDeny(req.basketId)} className="text-red-600 hover:bg-red-50 p-1 rounded"><XCircle size={18}/></button>
                                         </div>
                                     )}
                                 </td>

@@ -1,13 +1,16 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, AlertCircle, ShieldCheck, Loader2 } from 'lucide-react';
+import { X, ShoppingBag, ArrowRight, AlertCircle, ShieldCheck, Ticket, Plus } from 'lucide-react';
 import { useBasket } from '../../context/BasketContext';
-import { Button } from '../ui';
+import { Button, useToast } from '../ui';
 import { formatCurrency } from '../../lib/utils';
 import { BasketStatus } from '../../types';
-import { ASSETS } from '../../assets';
-import { cn } from '../ui/utils';
+import { CartItem } from './CartItem';
+
+const MotionDiv = motion.div as any;
+const MotionSpan = motion.span as any;
 
 interface CartDrawerProps {
     onNavigateToDashboard: () => void;
@@ -16,11 +19,20 @@ interface CartDrawerProps {
 export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard }) => {
   const { 
     isCartOpen, closeCart, basket, 
-    updateItem, removeItem, 
-    subtotal, serviceFee, totalValue 
+    updateItem, removeItem, applyCoupon, removeCoupon,
+    subtotal, serviceFee, totalValue, discount 
   } = useBasket();
   
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const [couponInput, setCouponInput] = useState('');
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+  
   const isLocked = basket?.status !== BasketStatus.OPEN && basket !== undefined;
 
   const handleCheckout = () => {
@@ -28,46 +40,51 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard })
       onNavigateToDashboard();
   };
 
-  const handleUpdate = async (productId: string, delta: number) => {
-      if (updatingId) return;
-      setUpdatingId(productId);
+  const handleApplyCoupon = async () => {
+      if (!couponInput.trim()) return;
+      setIsApplyingCoupon(true);
       try {
-          await updateItem(productId, delta);
+          const amount = await applyCoupon(couponInput);
+          showToast(`Coupon applied! Saved ${formatCurrency(amount)}`, 'success');
+          setCouponInput('');
+      } catch (e: any) {
+          showToast(e.message || "Invalid coupon", 'error');
       } finally {
-          setUpdatingId(null);
+          setIsApplyingCoupon(false);
       }
   };
 
-  const handleRemove = async (productId: string) => {
-      if (updatingId) return;
-      setUpdatingId(productId);
+  const handleRemoveCoupon = async () => {
       try {
-          await removeItem(productId);
-      } finally {
-          setUpdatingId(null);
+          await removeCoupon();
+          showToast("Coupon removed", 'info');
+      } catch (e) {
+          showToast("Failed to remove coupon", 'error');
       }
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isCartOpen && (
         <>
           {/* Backdrop */}
-          <motion.div
+          <MotionDiv
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={closeCart}
-            className="fixed inset-0 bg-stone-900/40 backdrop-blur-md z-[100]"
+            className="fixed inset-0 bg-stone-900/40 backdrop-blur-md z-[9998]"
           />
           
           {/* Drawer */}
-          <motion.div
+          <MotionDiv
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed inset-y-0 right-0 z-[101] w-full max-w-md bg-stone-50 shadow-2xl flex flex-col border-l border-white/50"
+            className="fixed inset-y-0 right-0 z-[9999] w-full max-w-md bg-stone-50 shadow-2xl flex flex-col border-l border-white/50"
           >
             {/* Header */}
             <div className="p-6 border-b border-stone-200 bg-white/80 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
@@ -86,99 +103,35 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard })
             {/* Items List */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {!basket || !basket.items || basket.items.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-80">
-                        <div className="w-24 h-24 bg-stone-200 rounded-full flex items-center justify-center">
-                            <ShoppingBag size={40} className="text-stone-400" strokeWidth={1.5} />
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-100 animate-in fade-in duration-500">
+                        <div className="w-24 h-24 bg-stone-100 rounded-full flex items-center justify-center relative">
+                            <ShoppingBag size={40} className="text-stone-300" strokeWidth={1.5} />
+                            <div className="absolute bottom-0 right-0 bg-stone-200 p-2 rounded-full border-4 border-stone-50 shadow-sm">
+                                <Plus size={20} className="text-stone-400" />
+                            </div>
                         </div>
                         <div>
                             <h3 className="font-serif font-bold text-xl text-stone-900 mb-2">Your basket is empty</h3>
-                            <p className="font-medium text-stone-500 max-w-xs mx-auto">
-                                Start adding essentials like rice and oil to secure your monthly stock.
+                            <p className="font-medium text-stone-500 max-w-xs mx-auto text-sm leading-relaxed">
+                                Start adding essentials like rice, oil, and canned goods to secure your monthly stock.
                             </p>
                         </div>
-                        <Button onClick={closeCart} className="shadow-lg shadow-brand-900/10">Start Shopping</Button>
+                        <Button onClick={closeCart} className="shadow-lg shadow-brand-900/10 rounded-full px-8 h-12">
+                            Start Shopping
+                        </Button>
                     </div>
                 ) : (
-                    basket.items.map((item) => {
-                        const product = item.product;
-                        const fallbackName = "Product Item";
-                        const isUpdatingThis = updatingId === item.productId;
-                        
-                        return (
-                            <motion.div 
-                                layout
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                key={item.productId} 
-                                className="bg-white p-3 pr-4 rounded-2xl shadow-sm border border-stone-100 flex gap-4 group relative overflow-hidden"
-                            >
-                                {/* Normalized Thumbnail */}
-                                <div className="w-20 h-20 bg-[#F3F4F6] border border-stone-100 rounded-xl overflow-hidden shrink-0 relative flex items-center justify-center">
-                                    <img 
-                                        src={product?.image || ASSETS.PRODUCT_RICE} 
-                                        alt={product?.name || fallbackName} 
-                                        className="w-full h-full object-contain p-2" 
-                                        onError={(e) => { 
-                                            const target = e.target as HTMLImageElement;
-                                            target.onerror = null; 
-                                            target.src = ASSETS.PRODUCT_RICE; 
-                                        }}
-                                    />
-                                    {isUpdatingThis && (
-                                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10">
-                                            <Loader2 size={24} className="text-stone-900 animate-spin" />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex-1 flex flex-col justify-between py-1">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h4 className="font-bold text-stone-900 text-sm line-clamp-1">{product?.name || fallbackName}</h4>
-                                            <p className="text-xs text-stone-500 font-medium uppercase tracking-wide">{product?.size}</p>
-                                        </div>
-                                        <span className="font-serif font-bold text-brand-900 text-sm">
-                                            {formatCurrency(item.unitPrice * item.quantity)}
-                                        </span>
-                                    </div>
-
-                                    {!isLocked ? (
-                                        <div className="flex items-center justify-between mt-2">
-                                            <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-1">
-                                                <button 
-                                                    onClick={() => handleUpdate(item.productId, -1)}
-                                                    disabled={isUpdatingThis}
-                                                    className="w-7 h-7 flex items-center justify-center rounded-md bg-white shadow-sm text-stone-600 hover:text-red-500 active:scale-95 transition-all disabled:opacity-50"
-                                                >
-                                                    <Minus size={12} />
-                                                </button>
-                                                <span className="text-xs font-bold w-6 text-center tabular-nums">
-                                                    {item.quantity}
-                                                </span>
-                                                <button 
-                                                    onClick={() => handleUpdate(item.productId, 1)}
-                                                    disabled={isUpdatingThis}
-                                                    className="w-7 h-7 flex items-center justify-center rounded-md bg-white shadow-sm text-brand-600 active:scale-95 transition-all disabled:opacity-50"
-                                                >
-                                                    <Plus size={12} />
-                                                </button>
-                                            </div>
-                                            <button 
-                                                onClick={() => handleRemove(item.productId)}
-                                                disabled={isUpdatingThis}
-                                                className="text-stone-300 hover:text-red-500 transition-colors p-2 disabled:opacity-50"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                         <div className="mt-2 text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded inline-block font-bold">
-                                             Locked
-                                         </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        );
-                    })
+                    <AnimatePresence>
+                        {basket.items.map((item) => (
+                            <CartItem 
+                                key={item.productId}
+                                item={item}
+                                isLocked={isLocked}
+                                onUpdate={updateItem}
+                                onRemove={removeItem}
+                            />
+                        ))}
+                    </AnimatePresence>
                 )}
             </div>
 
@@ -195,17 +148,72 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard })
                 
                 {basket && basket.items && basket.items.length > 0 && (
                     <div className="space-y-3 mb-6">
+                        {/* Coupon Section */}
+                        <div className="pb-3 border-b border-stone-100">
+                            {basket.couponCode ? (
+                                 <MotionDiv 
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="flex items-center justify-between bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100"
+                                 >
+                                    <div className="flex items-center gap-2">
+                                        <Ticket size={16} className="text-emerald-600" />
+                                        <span className="text-sm font-bold text-emerald-900">{basket.couponCode} Applied</span>
+                                    </div>
+                                    <button onClick={handleRemoveCoupon} className="text-emerald-400 hover:text-emerald-700 transition-colors p-1"><X size={14}/></button>
+                                 </MotionDiv>
+                            ) : (
+                                 <div className="flex gap-2">
+                                    <input 
+                                        placeholder="Promo Code" 
+                                        value={couponInput}
+                                        onChange={e => setCouponInput(e.target.value.toUpperCase())}
+                                        className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500 focus:bg-white uppercase font-mono placeholder:normal-case placeholder:font-sans"
+                                        disabled={isLocked}
+                                    />
+                                    <Button 
+                                        size="sm" 
+                                        variant="secondary" 
+                                        onClick={handleApplyCoupon} 
+                                        disabled={!couponInput || isLocked || isApplyingCoupon}
+                                        loading={isApplyingCoupon}
+                                        className="h-auto"
+                                    >
+                                        Apply
+                                    </Button>
+                                 </div>
+                            )}
+                        </div>
+
                         <div className="flex justify-between text-sm text-stone-500">
                             <span>Subtotal</span>
-                            <span>{formatCurrency(subtotal)}</span>
+                            <span className="tabular-nums">{formatCurrency(subtotal)}</span>
                         </div>
                         <div className="flex justify-between text-sm text-stone-500">
                             <span className="flex items-center gap-1">Service Fee <ShieldCheck size={12} className="text-stone-400"/></span>
-                            <span>{formatCurrency(serviceFee)}</span>
+                            <span className="tabular-nums">{formatCurrency(serviceFee)}</span>
                         </div>
-                        <div className="flex justify-between text-xl font-serif font-bold text-brand-900 pt-4 border-t border-stone-100 items-baseline">
+                        {discount > 0 && (
+                            <MotionDiv 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="flex justify-between text-sm text-emerald-600 font-bold"
+                            >
+                                <span>Discount</span>
+                                <span className="tabular-nums">-{formatCurrency(discount)}</span>
+                            </MotionDiv>
+                        )}
+                        <div className="flex justify-between text-xl font-serif font-bold text-brand-900 pt-2 items-baseline">
                             <span className="text-base font-sans font-normal text-stone-500">Total Payable</span>
-                            <span>{formatCurrency(totalValue)}</span>
+                            <MotionSpan 
+                                key={totalValue} 
+                                initial={{ scale: 1.1, color: '#2A9D8F' }}
+                                animate={{ scale: 1, color: '#134440' }}
+                                className="tabular-nums"
+                            >
+                                {formatCurrency(totalValue)}
+                            </MotionSpan>
                         </div>
                     </div>
                 )}
@@ -215,6 +223,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard })
                     size="xl" 
                     onClick={handleCheckout} 
                     className="shadow-xl shadow-brand-900/20 group relative overflow-hidden"
+                    disabled={!basket || !basket.items || basket.items.length === 0}
                 >
                     <span className="relative z-10 flex items-center gap-2">
                         {basket && basket.items && basket.items.length > 0 
@@ -231,9 +240,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard })
                     </p>
                 )}
             </div>
-          </motion.div>
+          </MotionDiv>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };

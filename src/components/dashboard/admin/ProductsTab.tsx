@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
-import { Card, Button, Input, Select, Modal } from '../../ui';
+import { Card, Button } from '../../ui';
 import { Product, SystemSettings } from '../../../types';
 import { ASSETS } from '../../../assets';
-import { Plus, Edit2, Eye, EyeOff, Archive, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit2, Eye, EyeOff, Archive } from 'lucide-react';
 import { formatCurrency } from '../../../lib/utils';
 import { API } from '../../../lib/api';
+import { ProductFormModal } from './modals/ProductFormModal';
 
 interface ProductsTabProps {
     products: Product[];
@@ -17,53 +18,26 @@ interface ProductsTabProps {
 export const ProductsTab: React.FC<ProductsTabProps> = ({ products, settings, refreshAdminData, notify }) => {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [showProductForm, setShowProductForm] = useState(false);
-    
-    // Default form state
-    const [formData, setFormData] = useState<Partial<Product>>({
-        name: '', category: 'Grains', size: '', price: 0, description: '', image: '', isActive: true, stockStatus: 'IN_STOCK'
-    });
 
     const openCreate = () => {
         setEditingProduct(null);
-        setFormData({ name: '', category: 'Grains', size: '', price: 0, description: '', image: '', isActive: true, stockStatus: 'IN_STOCK' });
         setShowProductForm(true);
     };
 
     const openEdit = (p: Product) => {
         setEditingProduct(p);
-        setFormData({ ...p });
         setShowProductForm(true);
     };
 
-    const handleInputChange = (name: string, value: any) => {
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleSaveProduct = async () => {
-        if (!formData.name?.trim()) return notify("Product name is required", "error");
-        if (!formData.price || formData.price <= 0) return notify("Price must be greater than zero", "error");
-        if (!formData.category) return notify("Category is required", "error");
-        if (!formData.size) return notify("Unit size is required", "error");
-
+    const handleSaveProduct = async (productData: Partial<Product>) => {
         notify("Saving product details...", "info");
-        
         try {
-            const productPayload: Partial<Product> = {
-                ...formData,
-                name: formData.name?.trim(),
-                category: formData.category?.trim(),
-                size: formData.size?.trim(),
-                description: formData.description?.trim(),
-                image: (formData.image && formData.image.trim().length > 0) ? formData.image.trim() : ASSETS.PRODUCT_RICE,
-                isActive: formData.isActive ?? true,
-                stockStatus: formData.stockStatus ?? 'IN_STOCK',
+            await API.saveProduct({
+                ...productData,
                 ...(editingProduct && editingProduct.id ? { id: editingProduct.id } : {})
-            };
-        
-            await API.saveProduct(productPayload);
+            });
             setShowProductForm(false);
             setEditingProduct(null);
-            setFormData({ name: '', category: 'Grains', size: '', price: 0, description: '', image: '', isActive: true, stockStatus: 'IN_STOCK' });
             refreshAdminData();
             notify(editingProduct ? "Product updated" : "Product created", "success");
         } catch (error: any) {
@@ -107,105 +81,15 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({ products, settings, re
                </Button>
             </div>
 
-            <Modal
+            <ProductFormModal 
                 isOpen={showProductForm}
                 onClose={() => setShowProductForm(false)}
-                title={editingProduct ? 'Edit Product' : 'Add New Product'}
-                size="lg"
-                footer={
-                    <>
-                        <Button variant="ghost" onClick={() => setShowProductForm(false)}>Cancel</Button>
-                        <Button onClick={handleSaveProduct}>{editingProduct ? 'Update Product' : 'Create Product'}</Button>
-                    </>
-                }
-            >
-                <div className="flex gap-8 flex-col md:flex-row">
-                    {/* Left: Image Preview */}
-                    <div className="w-full md:w-1/3 space-y-4">
-                        <div className="aspect-square rounded-2xl bg-stone-50 border-2 border-dashed border-stone-200 overflow-hidden relative flex items-center justify-center group">
-                            {formData.image ? (
-                                <img 
-                                src={formData.image} 
-                                alt="Preview" 
-                                className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
-                                onError={(e) => { (e.target as HTMLImageElement).src = ASSETS.PRODUCT_RICE; }} 
-                                />
-                            ) : (
-                                <div className="text-stone-300 flex flex-col items-center">
-                                    <ImageIcon size={48} />
-                                    <span className="text-xs font-bold mt-2">No Image</span>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">Image Source (URL)</label>
-                            <input 
-                                type="text" 
-                                placeholder="/assets/images/..."
-                                value={formData.image}
-                                onChange={(e) => handleInputChange('image', e.target.value)}
-                                className="w-full text-xs p-3 rounded-xl border border-stone-200 bg-stone-50 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all"
-                            />
-                        </div>
-                        
-                        {/* Toggles */}
-                        <div className="bg-stone-50 p-4 rounded-xl space-y-3 border border-stone-100">
-                            <div 
-                                onClick={() => handleInputChange('isActive', !formData.isActive)}
-                                className="flex items-center justify-between cursor-pointer group"
-                            >
-                                <span className="text-xs font-bold text-stone-600 uppercase">Visibility</span>
-                                <div className={`w-10 h-5 rounded-full relative transition-colors ${formData.isActive ? 'bg-brand-900' : 'bg-stone-300'}`}>
-                                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform ${formData.isActive ? 'left-6' : 'left-1'}`}></div>
-                                </div>
-                            </div>
-                            <div 
-                                onClick={() => handleInputChange('stockStatus', formData.stockStatus === 'IN_STOCK' ? 'SOLD_OUT' : 'IN_STOCK')}
-                                className="flex items-center justify-between cursor-pointer group"
-                            >
-                                <span className="text-xs font-bold text-stone-600 uppercase">Stock Status</span>
-                                <div className={`w-10 h-5 rounded-full relative transition-colors ${formData.stockStatus === 'IN_STOCK' ? 'bg-emerald-500' : 'bg-red-400'}`}>
-                                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform ${formData.stockStatus === 'IN_STOCK' ? 'left-6' : 'left-1'}`}></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                product={editingProduct}
+                onSave={handleSaveProduct}
+                notify={notify}
+            />
 
-                    {/* Right: Details */}
-                    <div className="w-full md:w-2/3 space-y-5">
-                        <Input label="Product Name" value={formData.name} onChange={(e) => handleInputChange('name', e.target.value)} placeholder="e.g. Perfumed Rice" required />
-                        
-                        <div className="grid grid-cols-2 gap-5">
-                            <Select 
-                                label="Category" 
-                                value={formData.category}
-                                onChange={(e: any) => handleInputChange('category', e.target.value)}
-                                options={[
-                                    { label: 'Grains', value: 'Grains' }, { label: 'Oils', value: 'Oils' }, 
-                                    { label: 'Canned', value: 'Canned' }, { label: 'Cleaning', value: 'Cleaning' },
-                                    { label: 'Noodles', value: 'Noodles' }, { label: 'Electronics', value: 'Electronics' }
-                                ]} 
-                            />
-                            <Input label="Price (GHS)" type="number" step="0.01" value={formData.price} onChange={(e) => handleInputChange('price', e.target.value)} required />
-                        </div>
-                        
-                        <Input label="Size / Unit" value={formData.size} onChange={(e) => handleInputChange('size', e.target.value)} required placeholder="e.g. 5kg, 1L, Box of 12" />
-                        
-                        <div>
-                            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest ml-1 mb-2">Description</label>
-                            <textarea 
-                                value={formData.description}
-                                onChange={(e) => handleInputChange('description', e.target.value)}
-                                rows={4}
-                                className="block w-full rounded-xl border border-stone-200 bg-white p-4 text-stone-900 placeholder:text-stone-300 transition-all focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10 text-sm"
-                                placeholder="Product details and features..."
-                            />
-                        </div>
-                    </div>
-                </div>
-            </Modal>
-
+            {/* Product Grid Display */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                {products.map(p => (
                   <Card key={p.id} noPadding className={`group relative overflow-hidden flex flex-col transition-all hover:shadow-xl ${!p.isActive ? 'opacity-70' : ''}`}>
@@ -215,7 +99,7 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({ products, settings, re
                      </div>
 
                      <div className="aspect-[4/3] bg-stone-100 relative flex items-center justify-center overflow-hidden">
-                        <img src={p.image} className={`w-full h-full object-contain transition-all duration-500 ${p.stockStatus === 'SOLD_OUT' ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} alt={p.name} />
+                        <img src={p.image} className={`w-full h-full object-cover transition-all duration-500 ${p.stockStatus === 'SOLD_OUT' ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} alt={p.name} />
                         
                         {/* Badges */}
                         <div className="absolute top-3 left-3 flex flex-col gap-1">

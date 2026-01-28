@@ -39,6 +39,7 @@ export interface User {
   isEmailVerified: boolean; 
   referralCode?: string;
   referredBy?: string;
+  planIntent?: string; // New field to track what plan they chose during signup
 }
 
 export interface Product {
@@ -142,6 +143,10 @@ export interface SystemSettings {
     privacyPolicy: string;
     termsOfService: string;
     refundPolicy: string;
+  };
+  branding?: {
+    logo?: string;      // Main logo (colored/dark text for white bg)
+    logoWhite?: string; // White logo (for dark bg)
   };
 }
 

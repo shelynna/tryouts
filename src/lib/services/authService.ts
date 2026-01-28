@@ -1,36 +1,60 @@
 
 import { supabase } from '../supabaseClient';
-import { User, UserRole, PickupPoint } from '../../types';
+import { User } from '../../types';
+import { withTimeout } from '../utils';
 
 export const getMe = async (userId?: string): Promise<User | undefined> => {
-    const uid = userId || (await supabase.auth.getUser()).data.user?.id;
-    if (!uid) throw new Error("No user logged in");
+    try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !user) return undefined;
 
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).single();
-    
-    if (error) return undefined;
-    
-    return {
-        id: data.id,
-        fullName: data.full_name,
-        email: data.email,
-        phoneNumber: data.phone,
-        pickupPoint: data.pickup_point,
-        role: data.role,
-        isSubscriber: data.is_subscriber,
-        isEmailVerified: false, 
-        creditBalance: data.credit_balance,
-        isBlocked: data.is_blocked,
-        referralCode: data.referral_code,
-        referredBy: data.referred_by
-    } as User;
+        const uid = userId || user.id;
+
+        // Try to fetch profile from DB
+        const { data: profileData, error } = await withTimeout(
+            supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', uid)
+                .maybeSingle(),
+            5000, // 5s timeout max for DB
+            "Profile Fetch"
+        ) as any;
+
+        // If DB profile exists, return it
+        if (profileData && !error) {
+            return {
+                id: profileData.id,
+                fullName: profileData.full_name,
+                email: profileData.email,
+                phoneNumber: profileData.phone,
+                pickupPoint: profileData.pickup_point,
+                role: profileData.role,
+                isSubscriber: profileData.is_subscriber,
+                isEmailVerified: !!user.email_confirmed_at, 
+                creditBalance: profileData.credit_balance,
+                isBlocked: profileData.is_blocked,
+                referralCode: profileData.referral_code,
+                referredBy: profileData.referred_by
+            } as User;
+        }
+
+        // If DB profile is missing (race condition or trigger fail), 
+        // DO NOT LOOP. Return undefined. AuthContext will handle the fallback.
+        console.warn("Profile missing in DB, relying on Auth Metadata temporarily.");
+        return undefined;
+
+    } catch (e: any) {
+        console.warn("getMe failed", e);
+        return undefined;
+    }
 };
 
 export const updateProfile = async (data: Partial<User>) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    // Fix: Use data.pickupPoint (camelCase from User type) to map to pickup_point (snake_case DB column)
     const { error } = await supabase.from('profiles').update({
         full_name: data.fullName,
         phone: data.phoneNumber,
@@ -45,11 +69,9 @@ export const checkReferralCode = async (code: string): Promise<boolean> => {
     if (!code) return false;
     const cleanCode = code.toUpperCase().trim();
     
-    // Check Coupons table first (Associate Codes)
     const { data: coupon } = await supabase.from('coupons').select('id').eq('code', cleanCode).eq('is_active', true).maybeSingle();
     if (coupon) return true;
 
-    // Check Users table (Legacy Friend Codes)
     const { count, error } = await supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
@@ -58,15 +80,11 @@ export const checkReferralCode = async (code: string): Promise<boolean> => {
     return !error && count !== null && count > 0;
 };
 
-// --- OTP LOGIC ---
-
 export const sendLoginOtp = async (email: string) => {
-    // This sends a 6-digit code if 'Enable Email OTP' is on in Supabase
-    // Otherwise it sends a Magic Link.
     const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-            shouldCreateUser: false // Only allow existing users to login this way
+            emailRedirectTo: window.location.origin
         }
     });
     if (error) throw error;
@@ -83,8 +101,12 @@ export const verifyLoginOtp = async (email: string, token: string) => {
     return data;
 };
 
-export const forgotPassword = async (email: string) => supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/?view=RESET_PASSWORD` });
+export const forgotPassword = async (email: string) => supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
 
-export const resetPassword = async (token: string, pass: string) => supabase.auth.updateUser({ password: pass });
+export const resetPassword = async (token: string, pass: string) => {
+    const { data, error } = await supabase.auth.updateUser({ password: pass });
+    if (error) throw error;
+    return data;
+};
 
 export const verifyEmail = async (token: string) => ({ success: true });

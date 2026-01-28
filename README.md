@@ -1,5 +1,5 @@
 
-# Sɔ ME MU (SMM)
+# SML (Smart Monthly Living)
 
 **Smart Monthly Living** - A student-focused grocery installment platform.
 
@@ -11,7 +11,7 @@
    ```
 
 2. **Setup Environment:**
-   Copy `.env.example` (if available) or create `.env` with your Supabase and Paystack keys.
+   Create `.env` with your Supabase and Paystack keys.
 
 3. **Run locally:**
    ```bash

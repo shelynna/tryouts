@@ -2,11 +2,11 @@
 import React from 'react';
 import { Card } from '../../../ui';
 
-export const MetricCard = ({ title, value, subtext, icon: Icon, colorClass, trend }: any) => (
+export const MetricCard = ({ title, value, subtext, iconClass, colorClass, trend }: any) => (
     <Card className="p-4 md:p-6 flex flex-col justify-between h-full border-stone-200 shadow-sm">
         <div className="flex justify-between items-start mb-2 md:mb-4">
             <div className={`p-2 md:p-3 rounded-xl ${colorClass} bg-opacity-10 text-opacity-100`}>
-                <Icon size={18} className="md:w-5 md:h-5" />
+                <i className={iconClass + " md:text-xl"}></i>
             </div>
         </div>
         <div>

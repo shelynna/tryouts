@@ -3,11 +3,6 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAdminData } from '../hooks/useAdminData';
 import { ASSETS } from '../assets';
-import { 
-  LayoutDashboard, ShoppingCart, Users, Truck, QrCode, 
-  Settings, FileText, Activity, LogOut, Grid, 
-  Package, ArrowUpCircle, X, Award
-} from 'lucide-react';
 import { OverviewTab } from '../components/dashboard/admin/OverviewTab';
 import { OrdersTab } from '../components/dashboard/admin/OrdersTab';
 import { ProductsTab } from '../components/dashboard/admin/ProductsTab';
@@ -28,18 +23,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 const MotionDiv = motion.div as any;
 
 const TABS = [
-  { id: 'OVERVIEW', label: 'Overview', icon: LayoutDashboard },
-  { id: 'ORDERS', label: 'Orders', icon: ShoppingCart },
-  { id: 'PRODUCTS', label: 'Inventory', icon: Package },
-  { id: 'USERS', label: 'Users', icon: Users },
-  { id: 'ASSOCIATES', label: 'Associates', icon: Award },
-  { id: 'TOPUPS', label: 'Top-Ups', icon: ArrowUpCircle },
-  { id: 'PROCUREMENT', label: 'Procurement', icon: Grid },
-  { id: 'DELIVERIES', label: 'Dispatch', icon: Truck },
-  { id: 'PICKUP', label: 'Quick Scan', icon: QrCode },
-  { id: 'CYCLE', label: 'Cycle Config', icon: Settings },
-  { id: 'CONTENT', label: 'Content', icon: FileText },
-  { id: 'LOGS', label: 'System Logs', icon: Activity },
+  { id: 'OVERVIEW', label: 'Overview', iconClass: 'bx bxs-dashboard' },
+  { id: 'ORDERS', label: 'Orders', iconClass: 'bx bx-cart' },
+  { id: 'PRODUCTS', label: 'Inventory', iconClass: 'bx bx-package' },
+  { id: 'USERS', label: 'Users', iconClass: 'bx bx-group' },
+  { id: 'ASSOCIATES', label: 'Associates', iconClass: 'bx bx-award' },
+  { id: 'TOPUPS', label: 'Top-Ups', iconClass: 'bx bx-up-arrow-circle' },
+  { id: 'PROCUREMENT', label: 'Procurement', iconClass: 'bx bx-grid-alt' },
+  { id: 'DELIVERIES', label: 'Dispatch', iconClass: 'bx bxs-truck' },
+  { id: 'PICKUP', label: 'Quick Scan', iconClass: 'bx bx-qr' },
+  { id: 'CYCLE', label: 'Cycle Config', iconClass: 'bx bx-cog' },
+  { id: 'CONTENT', label: 'Content', iconClass: 'bx bx-file' },
+  { id: 'LOGS', label: 'System Logs', iconClass: 'bx bx-pulse' },
 ];
 
 export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => void }> = ({ onAction }) => {
@@ -61,6 +56,9 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
             </div>
         );
     }
+
+    // Dynamic White Logo
+    const logoUrl = settings?.branding?.logoWhite || ASSETS.LOGO_WHITE;
 
     const renderContent = () => {
         switch(activeTab) {
@@ -105,8 +103,7 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
             {/* 1. Brand Top Bar (Fixed) */}
             <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-stone-900 px-5 py-3 h-[52px] flex items-center justify-between shadow-md">
                 <div className="flex items-center gap-2">
-                    <img src={ASSETS.LOGO_WHITE} alt="SMM" className="h-6 w-auto opacity-90" />
-                    <span className="font-heading font-bold text-lg tracking-tight text-white">SMM.</span>
+                    <img src={logoUrl} alt="SML" className="h-6 w-auto opacity-90 object-contain" />
                 </div>
             </div>
 
@@ -118,7 +115,7 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
                             {TABS.find(t => t.id === activeTab)?.label}
                         </h1>
                         {activeTab === 'TOPUPS' && topUps.length > 0 && (
-                            <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">{topUps.length}</span>
+                            <span className="bg-red-50 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">{topUps.length}</span>
                         )}
                     </div>
                     <p className="text-[10px] text-stone-400 uppercase tracking-widest font-bold">Console</p>
@@ -127,7 +124,7 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
                     onClick={() => setIsMobileMenuOpen(true)}
                     className="p-2.5 bg-stone-100 rounded-full text-stone-600 hover:bg-stone-200 active:scale-95 transition-all border border-stone-200"
                 >
-                    <Grid size={20} />
+                    <i className='bx bx-grid-alt text-xl'></i>
                 </button>
             </header>
 
@@ -158,7 +155,7 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
                                     <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">Menu</span>
                                 </div>
                                 <button onClick={() => setIsMobileMenuOpen(false)} className="w-10 h-10 rounded-full bg-stone-100 text-stone-500 flex items-center justify-center hover:bg-stone-200 cursor-pointer">
-                                    <X size={20} />
+                                    <i className='bx bx-x text-xl'></i>
                                 </button>
                              </div>
 
@@ -175,7 +172,7 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
                                                 : "bg-white border-stone-100 shadow-sm text-stone-600 hover:border-stone-200"
                                         )}
                                     >
-                                        <tab.icon size={24} className={cn("mb-2", activeTab === tab.id ? "text-brand-600" : "text-stone-400")} />
+                                        <i className={cn("text-2xl mb-2", tab.iconClass, activeTab === tab.id ? "text-brand-600" : "text-stone-400")}></i>
                                         <span className="font-bold text-[10px] uppercase tracking-wide text-center leading-tight">{tab.label}</span>
                                         
                                         {/* Badge for TopUps */}
@@ -192,7 +189,7 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
                                     onClick={() => { setIsMobileMenuOpen(false); setIsLogoutConfirmOpen(true); }}
                                     className="w-full flex items-center justify-center gap-2 py-3 text-red-500 font-bold bg-white border border-red-100 rounded-xl hover:bg-red-50 transition-colors shadow-sm"
                                 >
-                                    <LogOut size={18} /> Sign Out
+                                    <i className='bx bx-log-out text-lg'></i> Sign Out
                                 </button>
                              </div>
                         </MotionDiv>
@@ -202,12 +199,10 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
 
             {/* Desktop Sidebar */}
             <aside className="hidden lg:flex w-64 h-screen sticky top-0 flex-col bg-stone-900 text-stone-400 border-r border-stone-800 shrink-0">
-                <div className="p-6 flex items-center gap-3 mb-6">
-                    <img src={ASSETS.LOGO_WHITE} alt="SMM" className="h-8 w-auto opacity-90" />
-                    <div>
-                        <h1 className="font-heading font-bold text-white text-lg leading-none">SMM.</h1>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-brand-500">Admin</span>
-                    </div>
+                <div className="p-6 flex flex-col items-center justify-center mb-6 border-b border-white/5 py-8">
+                    {/* Logo Only - Centered */}
+                    <img src={logoUrl} alt="SML" className="h-10 w-auto opacity-90 mb-2 object-contain" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-brand-500">Admin Console</span>
                 </div>
 
                 <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
@@ -222,7 +217,7 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
                                     : "hover:bg-white/5 hover:text-white"
                             )}
                         >
-                            <tab.icon size={18} />
+                            <i className={cn("text-lg", tab.iconClass)}></i>
                             {tab.label}
                             {tab.id === 'TOPUPS' && topUps.length > 0 && (
                                 <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{topUps.length}</span>
@@ -236,7 +231,7 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
                         onClick={() => setIsLogoutConfirmOpen(true)}
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-white/5 rounded-lg transition-colors"
                     >
-                        <LogOut size={18} /> Sign Out
+                        <i className='bx bx-log-out text-lg'></i> Sign Out
                     </button>
                 </div>
             </aside>

@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { Button, Input, useToast } from '../../components/ui';
 import { Mail, Lock, ArrowRight, Loader2, RefreshCw, MailWarning, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
@@ -8,65 +9,76 @@ import { useAuth } from '../../context/AuthContext';
 import { Logger } from '../../lib/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API } from '../../lib/api';
+import { withTimeout } from '../../lib/utils';
+import { User } from '../../types';
 
 const MotionDiv = motion.div as any;
 
 interface LoginProps {
   onNavigate: (view: string) => void;
+  logoUrl?: string;
 }
 
-export const Login: React.FC<LoginProps> = ({ onNavigate }) => {
+export const Login: React.FC<LoginProps> = ({ onNavigate, logoUrl }) => {
   const { showToast } = useToast();
-  const { refreshUser } = useAuth();
+  const { refreshUser } = useAuth(); // We can trigger a fresh fetch, but AuthContext updates automatically now
   
   const [method, setMethod] = useState<'PASSWORD' | 'MAGIC_LINK'>('PASSWORD');
   const [isLoading, setIsLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [sentEmail, setSentEmail] = useState('');
+
+  // REACT HOOK FORM SETUP
+  const { register, handleSubmit, formState: { errors } } = useForm({
+      defaultValues: {
+          email: '',
+          password: ''
+      }
+  });
 
   const checkUserRoleAndRedirect = async () => {
-      // Fetch latest profile to determine strict role
-      try {
-          const user = await API.getMe();
-          if (user?.role === 'ADMIN') {
-              onNavigate('ADMIN');
-          } else {
-              onNavigate('DASHBOARD');
+      // Small delay to allow AuthContext to update state naturally
+      setTimeout(async () => {
+          try {
+              // We do a quick check on the profile from API just to be safe about Role
+              const user = await API.getMe(); 
+              if (user?.role === 'ADMIN') {
+                  onNavigate('ADMIN');
+              } else {
+                  onNavigate('SHOP');
+              }
+          } catch {
+              onNavigate('SHOP');
           }
-      } catch (e) {
-          // Fallback if fetch fails
-          onNavigate('DASHBOARD');
-      }
+      }, 500);
   };
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (data: any) => {
     setIsLoading(true);
     setNeedsConfirmation(false);
+    setSentEmail(data.email);
 
     try {
       if (method === 'PASSWORD') {
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          // Standard login
+          const { data: authData, error } = await supabase.auth.signInWithPassword({ 
+              email: data.email, 
+              password: data.password 
+          });
+
           if (error) throw error;
-          if (!data.session) throw new Error("No session created. Please try again.");
+          if (!authData?.session) throw new Error("No session created.");
           
-          await refreshUser();
           showToast("Login successful!", 'success');
-          
-          // Strict Role Redirect
           await checkUserRoleAndRedirect();
 
       } else {
-          // Magic Link Flow
+          // Magic Link
           const { error } = await supabase.auth.signInWithOtp({
-              email,
-              options: {
-                  shouldCreateUser: false // Only allow existing users
-              }
+              email: data.email,
+              options: { emailRedirectTo: window.location.origin }
           });
           
           if (error) throw error;
@@ -76,12 +88,15 @@ export const Login: React.FC<LoginProps> = ({ onNavigate }) => {
 
     } catch (err: any) {
       Logger.error("Login Failed", err);
-      if (err.message.includes("Invalid login")) {
-          showToast("Incorrect email or password.", 'error');
-      } else if (err.message.includes("Email not confirmed")) {
+      const msg = err.message || '';
+      
+      if (msg.includes("Email not confirmed")) {
           setNeedsConfirmation(true);
+          showToast("Email not verified yet.", 'info');
+      } else if (err.code === 'invalid_credentials' || msg.includes("Invalid login")) {
+          showToast("Incorrect password or email.", 'error');
       } else {
-          showToast(err.message || "An unexpected error occurred.", 'error');
+          showToast(msg || "An unexpected error occurred.", 'error');
       }
     } finally {
         setIsLoading(false);
@@ -89,30 +104,30 @@ export const Login: React.FC<LoginProps> = ({ onNavigate }) => {
   };
 
   const handleResendConfirmation = async () => {
-      if (!email) return;
+      if (!sentEmail) return;
       setIsResending(true);
       const { error } = await supabase.auth.resend({
           type: 'signup',
-          email: email,
+          email: sentEmail,
+          options: { emailRedirectTo: `${window.location.origin}/verify-email` }
       });
       
       if (error) {
           showToast(error.message, 'error');
       } else {
-          showToast("Confirmation email resent! Check your inbox.", 'success');
+          showToast("Confirmation email resent!", 'success');
       }
       setIsResending(false);
   };
 
-  // View: Magic Link Sent Confirmation
   if (magicLinkSent) {
       return (
-        <AuthLayout title="Check your email" subtitle={`We sent a login link to ${email}`} onBack={() => setMagicLinkSent(false)}>
+        <AuthLayout title="Check your email" subtitle={`We sent a login link to ${sentEmail}`} onBack={() => setMagicLinkSent(false)} logoUrl={logoUrl}>
             <MotionDiv initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center space-y-8 py-4">
                 <div className="w-20 h-20 bg-brand-100 rounded-full flex items-center justify-center mx-auto text-brand-600">
                     <Mail size={40} />
                 </div>
-                <p className="text-stone-600">
+                <p className="text-stone-600 font-medium">
                     Click the link in the email to log in instantly. You can close this tab.
                 </p>
                 <div className="space-y-3">
@@ -131,8 +146,9 @@ export const Login: React.FC<LoginProps> = ({ onNavigate }) => {
   return (
     <AuthLayout 
         title={needsConfirmation ? "Check Your Email" : (method === 'PASSWORD' ? "Welcome Back" : "Magic Link Login")}
-        subtitle={needsConfirmation ? `We sent a link to ${email}` : "Sign in to manage your monthly basket."}
+        subtitle={needsConfirmation ? `We sent a link to ${sentEmail}` : "Sign in to manage your monthly basket."}
         onBack={() => onNavigate('LANDING')}
+        logoUrl={logoUrl}
     >
         <AnimatePresence mode="wait">
             {needsConfirmation ? (
@@ -170,7 +186,6 @@ export const Login: React.FC<LoginProps> = ({ onNavigate }) => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                 >
-                    {/* Toggle */}
                     <div className="flex bg-stone-100 p-1 rounded-xl mb-6">
                         <button 
                             onClick={() => setMethod('PASSWORD')}
@@ -186,13 +201,16 @@ export const Login: React.FC<LoginProps> = ({ onNavigate }) => {
                         </button>
                     </div>
 
-                    <form onSubmit={handleLoginSubmit} className="space-y-6">
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                         <div className="space-y-4">
                             <Input 
-                                label="Email Address" type="email" icon={<Mail size={18} />} 
+                                label="Email Address" 
+                                type="email" 
+                                icon={<Mail size={18} />} 
                                 placeholder="student@university.edu.gh"
-                                value={email} onChange={e => setEmail(e.target.value)} 
-                                required autoFocus
+                                {...register("email", { required: "Email is required" })}
+                                error={errors.email?.message as string}
+                                autoFocus
                             />
                             
                             {method === 'PASSWORD' && (
@@ -202,17 +220,18 @@ export const Login: React.FC<LoginProps> = ({ onNavigate }) => {
                                             <label className="block text-sm font-bold text-stone-700">Password</label>
                                             <button 
                                                 type="button"
-                                                onClick={() => onNavigate('FORGOT_PASSWORD')} 
+                                                onClick={() => onNavigate('FORGOT-PASSWORD')} 
                                                 className="text-xs font-bold text-brand-600 hover:text-brand-800"
                                             >
                                                 Forgot Password?
                                             </button>
                                         </div>
                                         <Input 
-                                            type="password" icon={<Lock size={18} />} 
+                                            type="password" 
+                                            icon={<Lock size={18} />} 
                                             placeholder="••••••••"
-                                            value={password} onChange={e => setPassword(e.target.value)} 
-                                            required 
+                                            {...register("password", { required: "Password is required" })}
+                                            error={errors.password?.message as string}
                                         />
                                     </div>
                                 </MotionDiv>

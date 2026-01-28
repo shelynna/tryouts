@@ -1,26 +1,17 @@
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { User, UserRole, PickupPoint } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { API } from '../lib/api';
 import { Logger } from '../lib/logger';
-import { Session, AuthChangeEvent } from '@supabase/supabase-js';
-
-// The Gold Standard Auth States
-export type AuthStatus = 'CHECKING' | 'AUTHENTICATED' | 'UNAUTHENTICATED';
 
 interface AuthContextType {
   user: User | undefined;
-  session: Session | null;
-  status: AuthStatus;
-  
-  // Helpers
+  session: any | null;
   isAuthenticated: boolean;
-  isLoading: boolean;
+  isLoading: boolean; // True only during initial boot
   isAdmin: boolean;
-  authStatus: string; // Kept for backward compatibility with Login UI
-  
-  // Actions
+  authStatus: string;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -28,143 +19,132 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [status, setStatus] = useState<AuthStatus>('CHECKING');
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Partial<User> | null>(null);
+  const [session, setSession] = useState<any | null>(null);
+  const [profile, setProfile] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [authMsg, setAuthMsg] = useState('');
 
-  // Helper to load profile data
-  const loadProfile = async (uid: string) => {
-    try {
-      const p = await API.getMe(uid);
-      if (p) {
-        setProfile(p);
-        return p;
-      }
-    } catch (e) {
-      Logger.warn("Failed to load profile data. Using session metadata fallback.", { error: e });
-    }
-    return null;
+  // 1. Helper to construct a User object from Session Metadata (Fast Fallback)
+  const getUserFromSession = (currentSession: any): User | null => {
+      if (!currentSession?.user) return null;
+      const meta = currentSession.user.user_metadata || {};
+      
+      return {
+          id: currentSession.user.id,
+          email: currentSession.user.email || '',
+          isEmailVerified: !!currentSession.user.email_confirmed_at,
+          fullName: meta.full_name || 'SML User',
+          phoneNumber: meta.phone || '',
+          pickupPoint: (meta.pickup_point as PickupPoint) || PickupPoint.HALL_7,
+          role: UserRole.USER, // Default until DB loads
+          isSubscriber: false,
+          creditBalance: 0,
+          isBlocked: false,
+          referralCode: meta.referral_code_input || '',
+          planIntent: meta.plan_intent || 'STANDARD'
+      };
   };
 
-  // 1. AUTHENTICATION INITIALIZATION
+  // 2. Load Profile from DB (Async Enhancement)
+  const fetchProfile = useCallback(async (uid: string, currentSession: any) => {
+      try {
+          const dbUser = await API.getMe(uid);
+          if (dbUser) {
+              setProfile(dbUser);
+          } else {
+              // Keep the metadata user if DB fails, don't crash
+              setProfile(getUserFromSession(currentSession));
+          }
+      } catch (err) {
+          console.warn("Profile fetch error, using fallback", err);
+      }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
+    // 3. Initialize Session
     const initAuth = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         if (mounted) {
-          if (initialSession) {
-            setSession(initialSession);
-            // CRITICAL: Load profile BEFORE setting authenticated status
-            // This prevents the UI from rendering as "User" (default) before "Admin" is confirmed
-            await loadProfile(initialSession.user.id);
-            setStatus('AUTHENTICATED');
-            Logger.info("Auth initialized: Authenticated");
-          } else {
-            setStatus('UNAUTHENTICATED');
-            Logger.info("Auth initialized: No Session");
-          }
+            if (initialSession) {
+                setSession(initialSession);
+                // Set immediate fallback so UI shows "Logged In" instantly
+                setProfile(getUserFromSession(initialSession)); 
+                // Then fetch full data in background
+                fetchProfile(initialSession.user.id, initialSession);
+            }
         }
-      } catch (e) {
-        Logger.error("Auth initialization error", e);
-        if (mounted) setStatus('UNAUTHENTICATED');
+      } catch (error) {
+        console.error("Auth init error:", error);
+      } finally {
+        if (mounted) setIsLoading(false);
       }
     };
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, newSession: Session | null) => {
-      if (!mounted) return;
-      Logger.info(`Auth Event: ${event}`);
+    // 4. Real-time Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        if (!mounted) return;
 
-      if (newSession) {
-        setSession(newSession);
-        // Only load profile if we don't have it or it's a different user
-        if (!profile || profile.id !== newSession.user.id) {
-             await loadProfile(newSession.user.id);
+        if (newSession) {
+            setSession(newSession);
+            // If we just signed in or don't have a profile yet
+            if (event === 'SIGNED_IN' || !profile) {
+                setProfile(getUserFromSession(newSession));
+                fetchProfile(newSession.user.id, newSession);
+            }
+            setIsLoading(false);
+        } else {
+            // Signed out
+            setSession(null);
+            setProfile(null);
+            setIsLoading(false);
         }
-        setStatus('AUTHENTICATED');
-      } else {
-        setSession(null);
-        setProfile(null);
-        setStatus('UNAUTHENTICATED');
-      }
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
-
-  // 3. DERIVED STATE (The "Model")
-  const user = useMemo((): User | undefined => {
-    if (!session?.user) return undefined;
-
-    const metadata = session.user.user_metadata || {};
-    
-    return {
-      id: session.user.id,
-      email: session.user.email || '',
-      isEmailVerified: !!session.user.email_confirmed_at,
-      
-      fullName: profile?.fullName || metadata.full_name || 'User',
-      phoneNumber: profile?.phoneNumber || metadata.phone || '',
-      pickupPoint: (profile?.pickupPoint as PickupPoint) || (metadata.pickup_point as PickupPoint) || PickupPoint.HALL_7,
-      
-      role: profile?.role || UserRole.USER,
-      isSubscriber: profile?.isSubscriber || false,
-      creditBalance: profile?.creditBalance || 0,
-      isBlocked: profile?.isBlocked || false,
-      
-      referralCode: profile?.referralCode,
-      referredBy: profile?.referredBy
-    };
-  }, [session, profile]);
+  }, [fetchProfile]);
 
   const logout = async () => {
     setAuthMsg('Signing out...');
     try {
         await supabase.auth.signOut();
+        localStorage.clear();
+        setSession(null);
+        setProfile(null);
     } catch (e) {
         Logger.error("Logout error", e);
+    } finally {
+        setAuthMsg('');
     }
-    setSession(null);
-    setProfile(null);
-    setStatus('UNAUTHENTICATED');
-    localStorage.clear();
-    setAuthMsg('');
   };
 
   const refreshUser = async () => {
     const { data: { session: currentSession } } = await supabase.auth.getSession();
-    
-    if (currentSession?.user) {
-      if (!session || session.user.id !== currentSession.user.id) {
-          setSession(currentSession);
-      }
-      // Force reload profile to get latest role/balance
-      await loadProfile(currentSession.user.id);
-      
-      if (status !== 'AUTHENTICATED') {
-          setStatus('AUTHENTICATED');
-      }
+    if (currentSession) {
+        setSession(currentSession);
+        await fetchProfile(currentSession.user.id, currentSession);
     }
   };
 
+  const computedUser = useMemo(() => profile, [profile]);
+
   return (
     <AuthContext.Provider value={{
-      user,
-      session,
-      status,
-      isAuthenticated: status === 'AUTHENTICATED',
-      isLoading: status === 'CHECKING',
-      isAdmin: user?.role === UserRole.ADMIN,
+      user: computedUser || undefined, 
+      session, 
+      isAuthenticated: !!session,
+      isLoading,
+      isAdmin: computedUser?.role === UserRole.ADMIN,
       authStatus: authMsg,
-      logout,
+      logout, 
       refreshUser
     }}>
       {children}

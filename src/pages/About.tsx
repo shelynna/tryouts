@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '../components/ui';
 import { ArrowLeft, ShieldCheck, Package, Truck, Users, CheckCircle, ArrowRight, Wallet, ShoppingCart } from 'lucide-react';
@@ -13,7 +14,6 @@ interface AboutPageProps {
 export const AboutPage: React.FC<AboutPageProps> = ({ onBack, onRegister }) => (
   <div className="font-sans selection:bg-brand-100 bg-[#FDFDFD] min-h-screen pb-20">
     
-    {/* Hero Section: What is SML? */}
     <section className="relative pt-24 pb-16 px-6 max-w-5xl mx-auto text-center">
         <MotionDiv 
             initial={{ opacity: 0, y: 20 }}
@@ -30,7 +30,6 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onBack, onRegister }) => (
         </MotionDiv>
     </section>
 
-    {/* How It Works – Step by Step */}
     <section className="py-20 bg-stone-50 border-y border-stone-100">
         <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
@@ -38,38 +37,37 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onBack, onRegister }) => (
             </div>
 
             <div className="grid md:grid-cols-5 gap-8 relative">
-                {/* Connecting Line (Desktop) */}
                 <div className="hidden md:block absolute top-12 left-[10%] right-[10%] h-0.5 bg-stone-200 z-0"></div>
 
                 {[
                     { 
                         step: "1", 
                         title: "Choose Your SML Package", 
-                        desc: "Select a package that fits your lifestyle and budget. Each package includes monthly food essentials, wholesale pricing, free or subsidized delivery, and access to member-only benefits.", 
+                        desc: "Select items that fit your lifestyle and budget. Each order includes monthly food essentials and access to member-only benefits.", 
                         icon: <Package size={24} /> 
                     },
                     { 
                         step: "2", 
-                        title: "Pay Small-Small (Flexible Payments)", 
-                        desc: "You can pay weekly, bi-weekly, or monthly as long as payment is completed before delivery day.", 
+                        title: "Pay Small-Small", 
+                        desc: "You can pay weekly, bi-weekly, or whenever you have spare cash, as long as payment is completed before delivery day.", 
                         icon: <Wallet size={24} /> 
                     },
                     { 
                         step: "3", 
-                        title: "We Buy in Bulk (You Save Money)", 
+                        title: "We Buy in Bulk", 
                         desc: "SML buys directly from producers and distributors in bulk, allowing us to offer lower prices while maintaining quality.", 
                         icon: <ShoppingCart size={24} /> 
                     },
                     { 
                         step: "4", 
                         title: "We Deliver to You", 
-                        desc: "Once payments are completed, your food items are packed and delivered to your hostel or pickup point.", 
+                        desc: "Once payments are completed, your items are packed and delivered to your hostel or campus pickup point.", 
                         icon: <Truck size={24} /> 
                     },
                     { 
                         step: "5", 
-                        title: "Enjoy Member-Only Benefits", 
-                        desc: "Active members get access to discount deal drops, emergency food support, reward challenges, referral bonuses, and special campus offers.", 
+                        title: "Enjoy Member Benefits", 
+                        desc: "Active SML members get access to deal drops, emergency food support, reward challenges, and referral bonuses.", 
                         icon: <Users size={24} /> 
                     }
                 ].map((item, i) => (
@@ -86,11 +84,8 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onBack, onRegister }) => (
         </div>
     </section>
 
-    {/* Why Choose SML & Safety */}
     <section className="py-24 px-6 max-w-6xl mx-auto">
         <div className="grid md:grid-cols-2 gap-12 lg:gap-20 items-stretch">
-            
-            {/* Why Choose */}
             <div className="flex flex-col justify-center">
                 <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Why Students Choose SML</h2>
                 <div className="space-y-4">
@@ -110,7 +105,6 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onBack, onRegister }) => (
                 </div>
             </div>
 
-            {/* Safety & Legitimacy */}
             <div className="bg-brand-900 text-white p-10 md:p-12 rounded-[2rem] relative overflow-hidden shadow-2xl flex flex-col justify-between">
                 <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
                 <div className="absolute bottom-0 left-0 p-24 bg-accent-500/20 rounded-full blur-3xl -ml-12 -mb-12 pointer-events-none"></div>
@@ -144,11 +138,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onBack, onRegister }) => (
                     </div>
                 </div>
             </div>
-
         </div>
     </section>
 
-    {/* CTA */}
     <div className="text-center pb-16 pt-8 px-6">
         <h2 className="text-2xl md:text-3xl font-serif font-bold text-stone-900 mb-8">Ready for affordable, predictable monthly shopping?</h2>
         <div className="flex flex-col sm:flex-row justify-center gap-4">

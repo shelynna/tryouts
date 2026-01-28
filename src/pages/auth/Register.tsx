@@ -15,14 +15,15 @@ const MotionDiv = motion.div as any;
 
 interface RegisterProps {
   onNavigate: (view: string) => void;
+  logoUrl?: string;
 }
 
 const STEP_CREDENTIALS = 0;
 const STEP_PERSONAL = 1;
-const STEP_PLAN = 2; // New Step
+const STEP_PLAN = 2; 
 const STEP_PREFERENCES = 3;
 
-export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
+export const Register: React.FC<RegisterProps> = ({ onNavigate, logoUrl }) => {
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isValidatingCode, setIsValidatingCode] = useState(false);
@@ -33,7 +34,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
       email: '', password: '', confirmPassword: '',
       fullName: '', phoneNumber: '',
       pickupPoint: PickupPoint.HALL_7, referralCode: '',
-      plan: 'STANDARD' // 'STANDARD' | 'SUBSCRIBER'
+      plan: 'STANDARD'
   });
   
   const [hasReferral, setHasReferral] = useState(false);
@@ -46,7 +47,6 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
     try {
         if (currentStep === STEP_CREDENTIALS) RegisterStep1Schema.parse(formData);
         if (currentStep === STEP_PERSONAL) RegisterStep2Schema.parse(formData);
-        // Step 2 (Plan) is visual selection, always valid if set
         if (currentStep === STEP_PREFERENCES) RegisterStep3Schema.parse(formData);
         return true;
     } catch (error) {
@@ -63,23 +63,20 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
   const handleRegister = async () => {
       if (!validateStep()) return;
       
-      // Strict Referral Logic
       if (hasReferral) {
           if (!formData.referralCode.trim()) {
-              showToast("Please enter a referral/associate code or remove the option.", "error");
+              showToast("Please enter a referral code.", "error");
               return;
           }
-          
           setIsValidatingCode(true);
           try {
               const isValid = await API.checkReferralCode(formData.referralCode);
               if (!isValid) {
-                  showToast("Invalid Code. Please check or remove it.", "error");
+                  showToast("Invalid Code.", "error");
                   setIsValidatingCode(false);
                   return;
               }
           } catch (e) {
-              console.error(e);
               setIsValidatingCode(false);
               return;
           }
@@ -88,43 +85,48 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
       
       setIsLoading(true);
       try {
-          const { data, error } = await supabase.auth.signUp({
-              email: formData.email,
-              password: formData.password,
-              options: {
-                  // Updated to point to the correct route instead of query param
-                  emailRedirectTo: window.location.origin + '/verify-email',
-                  data: {
-                      full_name: formData.fullName,
-                      phone: formData.phoneNumber,
-                      pickup_point: formData.pickupPoint,
-                      referral_code_input: hasReferral ? formData.referralCode : '',
-                      // Store plan intent
-                      plan_intent: formData.plan
+          // Dynamic URL base - works for localhost or prod automatically
+          const redirectUrl = `${window.location.origin}/verify-email`;
+
+          // v2 signUp signature
+          const { data, error } = await supabase.auth.signUp(
+              {
+                  email: formData.email,
+                  password: formData.password,
+                  options: {
+                      data: {
+                          full_name: formData.fullName,
+                          phone: formData.phoneNumber,
+                          pickup_point: formData.pickupPoint,
+                          referral_code_input: hasReferral ? formData.referralCode : '',
+                          plan_intent: formData.plan // Stores selection in metadata for cross-device retrieval
+                      },
+                      emailRedirectTo: redirectUrl
                   }
               }
-          });
+          );
 
           if (error) throw error;
           
-          // IMPORTANT: If they chose SUBSCRIBER, we set a flag in localStorage so when they
-          // verify and log in, the Dashboard prompts payment immediately.
+          // Backup intention for immediate device login
           if (formData.plan === 'SUBSCRIBER') {
               localStorage.setItem('sml_intent', 'SUBSCRIBE');
           }
 
-          if (!data.user) throw new Error("User account could not be created.");
+          if (!data.user) throw new Error("Account creation failed.");
 
+          // If session is null, email confirmation is required (normal flow)
           if (data.user && !data.session) {
              setIsSuccess(true);
           } else {
+             // If auto-confirm is on (dev), skip to dashboard
              showToast("Account created successfully!", "success");
              onNavigate('DASHBOARD');
           }
 
       } catch (error: any) {
           Logger.error("Registration failed", error);
-          showToast(error.message, 'error');
+          showToast(error.status === 429 ? "Too many attempts. Please wait a moment." : (error.message || "Registration failed"), 'error');
       } finally {
           setIsLoading(false);
       }
@@ -145,7 +147,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
                           </p>
                       </div>
                       <div className="bg-amber-50 p-4 rounded-xl shadow-sm text-sm text-amber-800">
-                          <strong>Note:</strong> Click the link in the email to activate your account.
+                          <strong>Note:</strong> Check your <strong>Spam</strong> folder if you don't see it.
                           {formData.plan === 'SUBSCRIBER' && (
                               <span className="block mt-2 font-bold text-brand-700">
                                   You will be prompted to pay your subscription fee upon first login.
@@ -166,6 +168,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
         title="Create Account" 
         subtitle="Join 1,000+ students shopping smarter."
         onBack={() => onNavigate('LANDING')}
+        logoUrl={logoUrl}
     >
         <div className="flex justify-between mb-8 px-2 relative">
             {[0, 1, 2, 3].map((step) => (
@@ -209,8 +212,6 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
                     {currentStep === STEP_PLAN && (
                         <div className="space-y-4">
                             <h3 className="font-bold text-stone-900 text-center mb-2">Select your Plan</h3>
-                            
-                            {/* Standard Option */}
                             <div 
                                 onClick={() => updateField('plan', 'STANDARD')}
                                 className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.plan === 'STANDARD' ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-200' : 'border-stone-200 hover:border-stone-300'}`}
@@ -224,13 +225,8 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
                                         <span className="block font-bold text-lg">Free</span>
                                     </div>
                                 </div>
-                                <ul className="text-xs text-stone-600 space-y-1 list-disc list-inside">
-                                    <li>Installment payments</li>
-                                    <li>Wholesale pricing</li>
-                                </ul>
                             </div>
 
-                            {/* Subscriber Option */}
                             <div 
                                 onClick={() => updateField('plan', 'SUBSCRIBER')}
                                 className={`p-4 rounded-xl border-2 cursor-pointer transition-all relative ${formData.plan === 'SUBSCRIBER' ? 'border-brand-900 bg-stone-900 text-white shadow-xl transform scale-[1.02]' : 'border-stone-200 hover:border-brand-300'}`}
@@ -250,50 +246,36 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
                                     </div>
                                     <div className="text-right">
                                         <span className={`block font-bold text-lg ${formData.plan === 'SUBSCRIBER' ? 'text-white' : 'text-stone-900'}`}>GHS 15</span>
-                                        <span className={`text-[10px] ${formData.plan === 'SUBSCRIBER' ? 'text-stone-400' : 'text-stone-500'}`}>/ sem</span>
                                     </div>
                                 </div>
-                                <ul className={`text-xs space-y-1 list-disc list-inside ${formData.plan === 'SUBSCRIBER' ? 'text-stone-300' : 'text-stone-600'}`}>
-                                    <li><strong>Top-Up Credit Access</strong></li>
-                                    <li>Priority Delivery</li>
-                                    <li>Deal Drops</li>
-                                </ul>
                             </div>
                         </div>
                     )}
                     {currentStep === STEP_PREFERENCES && (
                         <div className="space-y-6">
                             <Select label="Preferred Pickup Point" value={formData.pickupPoint} onChange={(e: any) => updateField('pickupPoint', e.target.value)} options={Object.values(PickupPoint).map(p => ({ label: p, value: p }))} />
-                            
                             {!hasReferral ? (
                                  <button onClick={() => setHasReferral(true)} className="w-full py-3 border-2 border-dashed border-stone-200 rounded-xl text-stone-400 hover:border-brand-400 hover:text-brand-600 transition-colors flex items-center justify-center gap-2 text-sm font-bold">
-                                    <Ticket size={16} /> Have a Code? (Referral / Associate)
+                                    <Ticket size={16} /> Have a Code?
                                  </button>
                             ) : (
                                 <MotionDiv initial={{opacity:0, height: 0}} animate={{opacity:1, height: 'auto'}} className="bg-stone-50 p-4 rounded-xl shadow-inner border border-stone-200 space-y-2">
                                     <div className="flex justify-between items-center mb-1">
                                         <label className="text-xs font-bold text-stone-500 uppercase flex items-center gap-1">
-                                            <Ticket size={12} /> Referral / Associate Code
+                                            Referral / Associate Code
                                         </label>
-                                        <button 
-                                            onClick={() => { setHasReferral(false); updateField('referralCode', ''); }} 
-                                            className="text-xs text-stone-400 hover:text-red-500 flex items-center gap-1 font-bold bg-white px-2 py-1 rounded border border-stone-200 hover:border-red-200 transition-colors"
-                                        >
-                                            <X size={12} /> Remove
-                                        </button>
+                                        <button onClick={() => { setHasReferral(false); updateField('referralCode', ''); }} className="text-xs text-stone-400 hover:text-red-500 font-bold">Remove</button>
                                     </div>
                                     <Input 
                                         icon={<UserPlus size={18} className="text-brand-500" />} 
                                         value={formData.referralCode} 
                                         onChange={e => updateField('referralCode', e.target.value.toUpperCase())} 
                                         placeholder="e.g. SML-AMA-01" 
-                                        className="uppercase font-mono tracking-wider border-stone-300 focus:border-brand-500" 
+                                        className="uppercase font-mono tracking-wider" 
                                         autoFocus 
-                                        helperText="Code is required if option is selected."
                                     />
                                 </MotionDiv>
                             )}
-                            <p className="text-xs text-stone-400 text-center pt-2">By registering, you agree to our Terms of Service.</p>
                         </div>
                     )}
                 </MotionDiv>
@@ -301,26 +283,18 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate }) => {
 
             <div className="mt-auto pt-8 flex gap-3">
                 {currentStep > 0 && (
-                    <Button variant="outline" onClick={() => setCurrentStep(prev => prev - 1)} className="w-1/3 border-stone-300">
-                        Back
-                    </Button>
+                    <Button variant="outline" onClick={() => setCurrentStep(prev => prev - 1)} className="w-1/3">Back</Button>
                 )}
                 <Button 
                     fullWidth 
                     size="lg" 
                     onClick={currentStep === STEP_PREFERENCES ? handleRegister : handleNext} 
                     loading={isLoading || isValidatingCode} 
-                    className="shadow-xl shadow-brand-900/10"
+                    className="shadow-xl"
                 >
-                    {isValidatingCode ? 'Validating...' : (currentStep === STEP_PREFERENCES ? 'Create Account' : 'Continue')}
+                    {currentStep === STEP_PREFERENCES ? 'Create Account' : 'Continue'}
                 </Button>
             </div>
-        </div>
-        
-        <div className="text-center pt-6 border-t border-stone-100 mt-6">
-           <p className="text-stone-500 font-medium">
-              Already have an account? <button onClick={() => onNavigate('LOGIN')} className="text-brand-700 font-bold hover:underline">Log in</button>
-           </p>
         </div>
     </AuthLayout>
   );

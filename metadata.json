@@ -1,5 +1,7 @@
 {
-  "name": "Copy of Sɔ ME MU (SMM)-delivery system ",
+  "name": "Copy of SML - Smart Monthly Living",
   "description": "Smart Monthly Living - A pre-purchase platform for students to pay small-small for household essentials.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

@@ -2,7 +2,6 @@
 import React from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 import { cn } from '../../lib/utils';
-import { Loader2 } from 'lucide-react';
 
 const MotionButton = motion.button as any;
 
@@ -49,7 +48,7 @@ export const Button: React.FC<ButtonProps> = ({
       {...props}
     >
       {loading ? (
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        <i className="bx bx-loader-alt bx-spin mr-2 text-lg"></i>
       ) : null}
       {children}
     </MotionButton>

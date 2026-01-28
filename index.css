@@ -1,0 +1,82 @@
+
+/* Import only standard professional fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Poppins:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 14px; /* Reduced from default 16px to make everything look smaller/neater */
+  }
+  
+  body {
+    /* Force Inter font for body text */
+    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+    @apply bg-white text-stone-900 antialiased;
+  }
+
+  /* Force Poppins for Headings */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', sans-serif !important;
+    @apply tracking-tight text-stone-900;
+  }
+
+  /* Make numbers look like a financial app */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    @apply bg-brand-100 text-brand-900;
+  }
+}
+
+@layer utilities {
+  .glass-nav {
+    @apply bg-white/90 backdrop-blur-md shadow-sm;
+  }
+  
+  .container-padding {
+    @apply px-4 sm:px-6 lg:px-8 max-w-[1400px] mx-auto;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom Tiny Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-stone-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-stone-400;
+}

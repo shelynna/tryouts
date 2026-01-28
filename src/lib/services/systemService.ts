@@ -1,54 +1,106 @@
+
 import { supabase } from '../supabaseClient';
 import { Cycle, SystemSettings } from '../../types';
 import { Logger } from '../logger';
 
-export const getActiveCycle = async (): Promise<Cycle | null> => {
-    const { data } = await supabase.from('cycles').select('*').eq('is_active', true).single();
-    if (!data) return null;
-    return {
-        id: data.id,
-        name: data.name,
-        paymentStartDate: data.payment_start_date,
-        paymentEndDate: data.payment_end_date,
-        lockDate: data.lock_date,
-        unlockDate: data.unlock_date,
-        bulkStartDate: data.bulk_start_date,
-        bulkEndDate: data.bulk_end_date,
-        deliveryDate: data.delivery_date,
-        isActive: data.is_active
-    };
+// In-memory cache to prevent redundant fetches in production
+let cachedSettings: SystemSettings | null = null;
+let cachedCycle: Cycle | null = null;
+let lastFetchTime = 0;
+const CACHE_TTL = 30000; // 30 seconds
+
+export const getActiveCycle = async (forceRefresh = false): Promise<Cycle | null> => {
+    try {
+        const now = Date.now();
+        if (!forceRefresh && cachedCycle && (now - lastFetchTime < CACHE_TTL)) {
+            return cachedCycle;
+        }
+
+        const { data, error } = await supabase.from('cycles').select('*').eq('is_active', true).maybeSingle();
+        
+        if (error) {
+            // Suppress error log for aborts
+            const lowMsg = error.message?.toLowerCase();
+            if (!lowMsg?.includes('aborted') && !lowMsg?.includes('abort') && !lowMsg?.includes('signal')) {
+                console.warn("Cycle fetch issue:", error);
+            }
+            return cachedCycle; 
+        }
+        
+        if (!data) {
+            cachedCycle = null;
+            return null;
+        }
+
+        cachedCycle = {
+            id: data.id,
+            name: data.name,
+            paymentStartDate: data.payment_start_date,
+            paymentEndDate: data.payment_end_date,
+            lockDate: data.lock_date,
+            unlockDate: data.unlock_date,
+            bulkStartDate: data.bulk_start_date,
+            bulkEndDate: data.bulk_end_date,
+            deliveryDate: data.delivery_date,
+            isActive: data.is_active
+        };
+        lastFetchTime = now;
+        return cachedCycle;
+    } catch (e) {
+        return null;
+    }
 };
 
-export const getSettings = async (): Promise<SystemSettings> => {
-    const { data: config } = await supabase.from('app_settings').select('value').eq('key', 'GLOBAL_CONFIG').single();
-    const activeCycle = await getActiveCycle();
+export const getSettings = async (forceRefresh = false): Promise<SystemSettings> => {
+    const now = Date.now();
+    if (!forceRefresh && cachedSettings && (now - lastFetchTime < CACHE_TTL)) {
+        return cachedSettings;
+    }
 
-    const defaults = {
-        basketServiceFeePercentage: 5,
-        topUpServiceFeePercentage: 5,
-        heroImages: []
-    };
+    try {
+        const [configResult, activeCycle] = await Promise.allSettled([
+            supabase.from('app_settings').select('value').eq('key', 'GLOBAL_CONFIG').maybeSingle(),
+            getActiveCycle(forceRefresh)
+        ]);
 
-    const combined = { ...defaults, ...(config?.value || {}) };
+        const config = configResult.status === 'fulfilled' ? (configResult.value as any).data : null;
+        const cycle = activeCycle.status === 'fulfilled' ? activeCycle.value : null;
 
-    return {
-        ...combined,
-        cycleName: activeCycle?.name || "No Active Cycle",
-        // Map UI primary dates (No hardcoded fallback, allow null)
-        basketOpenDate: activeCycle?.paymentStartDate,
-        basketLockDate: activeCycle?.lockDate,
-        deliveryDate: activeCycle?.deliveryDate,
+        const defaults = {
+            basketServiceFeePercentage: 5,
+            topUpServiceFeePercentage: 5,
+            heroImages: [],
+            branding: {}
+        };
+
+        const combined = { ...defaults, ...(config?.value || {}) };
+
+        const settings: SystemSettings = {
+            ...combined,
+            cycleName: cycle?.name || "No Active Cycle",
+            basketOpenDate: cycle?.paymentStartDate,
+            basketLockDate: cycle?.lockDate,
+            deliveryDate: cycle?.deliveryDate,
+            paymentStartDate: cycle?.paymentStartDate,
+            paymentEndDate: cycle?.paymentEndDate,
+            lockDate: cycle?.lockDate,
+            unlockDate: cycle?.unlockDate,
+            bulkStartDate: cycle?.bulkStartDate,
+            bulkEndDate: cycle?.bulkEndDate,
+            isActive: !!cycle
+        };
         
-        // Granular Dates (New Schema)
-        paymentStartDate: activeCycle?.paymentStartDate,
-        paymentEndDate: activeCycle?.paymentEndDate,
-        lockDate: activeCycle?.lockDate,
-        unlockDate: activeCycle?.unlockDate,
-        bulkStartDate: activeCycle?.bulkStartDate,
-        bulkEndDate: activeCycle?.bulkEndDate,
-        
-        isActive: !!activeCycle
-    };
+        cachedSettings = settings;
+        lastFetchTime = now;
+        return settings;
+    } catch (e) {
+        return {
+            cycleName: 'SML',
+            isActive: false,
+            basketServiceFeePercentage: 5,
+            topUpServiceFeePercentage: 5
+        } as SystemSettings;
+    }
 };
 
 export const saveSettings = async (s: SystemSettings) => {
@@ -56,14 +108,15 @@ export const saveSettings = async (s: SystemSettings) => {
         basketServiceFeePercentage: s.basketServiceFeePercentage,
         topUpServiceFeePercentage: s.topUpServiceFeePercentage,
         heroImages: s.heroImages,
-        legalContent: s.legalContent
+        legalContent: s.legalContent,
+        branding: s.branding
     };
+    
     await supabase.from('app_settings').upsert({ key: 'GLOBAL_CONFIG', value: configValue });
 
     const activeCycle = await getActiveCycle();
     if (activeCycle) {
         await supabase.from('cycles').update({
-            // Save all granular dates, ensuring nulls are respected
             payment_start_date: s.paymentStartDate ?? null,
             payment_end_date: s.paymentEndDate ?? null,
             lock_date: s.lockDate ?? null,
@@ -73,6 +126,10 @@ export const saveSettings = async (s: SystemSettings) => {
             delivery_date: s.deliveryDate ?? null
         }).eq('id', activeCycle.id);
     }
+
+    cachedSettings = null;
+    cachedCycle = null;
+    lastFetchTime = 0;
 };
 
 export const uploadImage = async (file: File): Promise<string> => {
@@ -90,9 +147,33 @@ export const uploadImage = async (file: File): Promise<string> => {
     return data.publicUrl;
 };
 
-export const checkHealth = async () => {
-    const { error } = await supabase.from('app_settings').select('key').limit(1);
-    return !error;
+export interface HealthCheckResult {
+    status: 'ONLINE' | 'OFFLINE' | 'DB_ERROR';
+    message?: string;
+}
+
+export const checkHealth = async (): Promise<HealthCheckResult> => {
+    try {
+        const { error } = await supabase.from('app_settings').select('key').limit(1);
+        if (error) {
+            if (error.code === '42P01') return { status: 'DB_ERROR', message: 'Database Setup Required' };
+            // Production Abort check
+            const lowMsg = error.message?.toLowerCase();
+            if (lowMsg?.includes('aborted') || lowMsg?.includes('abort') || lowMsg?.includes('signal')) {
+                 return { status: 'ONLINE' }; 
+            }
+            return { status: 'OFFLINE', message: error.message };
+        }
+        return { status: 'ONLINE' };
+    } catch (e: any) {
+        return { status: 'OFFLINE', message: 'Connection issue' };
+    }
 };
 
-export const reportError = (err: any) => Logger.error('Frontend Error Report', err);
+export const reportError = (err: any) => {
+    const msg = typeof err === 'string' ? err : err.message;
+    const lowMsg = msg?.toLowerCase();
+    // CRITICAL: Silent ignore of abort signals/technical noise
+    if (lowMsg?.includes('abort') || lowMsg?.includes('signal') || lowMsg?.includes('fetch')) return;
+    Logger.error('SML Client Error', err);
+};

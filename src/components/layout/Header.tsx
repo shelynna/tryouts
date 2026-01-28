@@ -6,18 +6,19 @@ import { Button, Modal } from '../ui';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ASSETS } from '../../assets';
-import { Link, useLocation } from '../ui/utils';
+// @ts-ignore
+import { Link, useLocation } from 'react-router-dom';
 
-// Cast motion components to any to bypass type mismatch errors
 const MotionHeader = motion.header as any;
 const MotionDiv = motion.div as any;
 
 interface HeaderProps {
   currentView: string;
   setView: (view: any) => void;
+  logoUrl?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
+export const Header: React.FC<HeaderProps> = ({ currentView, setView, logoUrl }) => {
   const { user, logout, isAuthenticated } = useAuth();
   const { itemCount, openCart } = useBasket(); 
   const [isScrolled, setIsScrolled] = useState(false);
@@ -25,7 +26,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const location = useLocation();
 
-  // Handle scroll effect
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
@@ -34,7 +34,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
 
   const isAdmin = user?.role === 'ADMIN';
 
-  // Define Links with their paths
   const navLinks = isAuthenticated 
     ? (isAdmin 
         ? [{ id: 'ADMIN_DASHBOARD', label: 'Admin Console', path: '/admin' }]
@@ -92,20 +91,13 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
         transition={{ duration: 0.5 }}
       >
         <div className="container-padding flex items-center justify-between">
-          
-          {/* 1. Logo & Brand Name - Force Flex display for mobile */}
           <Link 
             to={isAuthenticated ? (isAdmin ? '/admin' : '/shop') : '/'}
             className="flex items-center cursor-pointer gap-2 z-50 shrink-0" 
           >
-            <img src={ASSETS.LOGO} alt="SMM" className="h-8 w-auto object-contain" />
-            <div className="flex flex-col">
-              <span className="font-heading font-bold text-xl tracking-tight text-stone-900 leading-none">SMM.</span>
-              <span className="text-[8px] font-bold text-brand-600 uppercase tracking-widest leading-none">Sɔ ME MU</span>
-            </div>
+            <img src={logoUrl || ASSETS.LOGO} alt="SML" className="h-10 w-auto object-contain" />
           </Link>
 
-          {/* 2. Desktop Nav - Centered */}
           <nav className="hidden md:flex items-center gap-8 absolute left-1/2 transform -translate-x-1/2">
              {navLinks.map(link => (
                <Link
@@ -124,10 +116,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
              ))}
           </nav>
 
-          {/* 3. Actions */}
           <div className="flex items-center gap-2 sm:gap-4">
-            
-            {/* Search Trigger (Visual Only for now) */}
             <button className="p-2 text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded-full transition-colors hidden sm:block">
               <i className='bx bx-search text-xl'></i>
             </button>
@@ -139,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
                       onClick={openCart}
                       className="relative p-2 text-stone-900 hover:opacity-70 transition-opacity"
                     >
-                        <i className='bx bx-shopping-bag text-xl font-bold'></i>
+                        <i className='bx bx-shopping-bag text-2xl fill-current'></i>
                         {itemCount > 0 && (
                           <span className="absolute top-0 right-0 bg-accent-500 text-white text-[10px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
                             {itemCount}
@@ -172,7 +161,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
                 </Link>
                 <Button 
                   size="sm" 
-                  onClick={() => setView('REGISTER')} // Keep setView for this since Register is a flow in this context or use Link
+                  onClick={() => setView('REGISTER')} 
                   className="rounded-full px-6"
                 >
                   Get Started
@@ -180,7 +169,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
               </div>
             )}
 
-            {/* Mobile Menu Toggle */}
             <button 
               className="md:hidden p-2 text-stone-900 z-50 relative"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -191,7 +179,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
         </div>
       </MotionHeader>
 
-      {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <MotionDiv 
@@ -233,7 +220,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
                    <div className="space-y-4">
                       <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
                           <Button fullWidth size="lg">
-                            Sign Up <i className='bx bx-right-arrow-alt ml-2 text-lg'></i>
+                            Sign Up <i className='bx bx-right-arrow-alt ml-2 text-xl'></i>
                           </Button>
                       </Link>
                       <Link to="/login" onClick={() => setMobileMenuOpen(false)}>

@@ -1,3 +1,4 @@
+
 export * from './Button';
 export * from './Input';
 export * from './Select';
@@ -10,3 +11,4 @@ export * from './Tabs';
 export * from './Modal';
 export * from './Skeleton';
 export * from './Pagination';
+export * from './SplashLoader';

@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { TrendingUp, ShieldCheck, ShoppingBag, DollarSign, Users } from 'lucide-react';
 import { formatCurrency } from '../../../lib/utils';
 import { AdminStats } from '../../../types';
 import { MetricCard } from './overview/MetricCard';
@@ -22,14 +21,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ stats }) => {
             title="Total Revenue" 
             value={formatCurrency(stats.projectedRevenue)} 
             subtext="Projected"
-            icon={DollarSign}
+            iconClass="bx bx-dollar"
             colorClass="text-brand-600 bg-brand-600"
         />
         <MetricCard 
             title="Collected" 
             value={formatCurrency(stats.collectedRevenue)} 
             subtext={`${stats.completionRate.toFixed(0)}% Rate`}
-            icon={ShieldCheck}
+            iconClass="bx bx-shield-quarter"
             colorClass="text-emerald-600 bg-emerald-600"
             trend={stats.completionRate}
         />
@@ -37,14 +36,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ stats }) => {
             title="Active Baskets" 
             value={stats.totalOrders} 
             subtext="This Cycle"
-            icon={ShoppingBag}
+            iconClass="bx bx-shopping-bag"
             colorClass="text-blue-600 bg-blue-600"
         />
         <MetricCard 
             title="Avg. Order" 
             value={formatCurrency(stats.avgOrderValue)} 
             subtext="Per Student"
-            icon={TrendingUp}
+            iconClass="bx bx-trending-up"
             colorClass="text-purple-600 bg-purple-600"
         />
       </div>
@@ -59,7 +58,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ stats }) => {
       {/* Footer Stat */}
       <div className="bg-stone-900 text-white p-4 rounded-xl flex items-center justify-between shadow-lg">
           <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/10 rounded-lg"><Users size={18} /></div>
+              <div className="p-2 bg-white/10 rounded-lg"><i className='bx bx-group text-lg'></i></div>
               <div>
                   <p className="font-bold text-sm">Total Participants</p>
                   <p className="text-[10px] text-stone-400">Active this cycle</p>

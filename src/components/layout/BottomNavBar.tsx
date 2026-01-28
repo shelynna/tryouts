@@ -2,7 +2,8 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 import { motion } from 'framer-motion';
-import { Link, useLocation } from '../ui/utils';
+// @ts-ignore
+import { Link, useLocation } from 'react-router-dom';
 
 const MotionDiv = motion.div as any;
 
@@ -14,12 +15,11 @@ interface BottomNavBarProps {
 export const BottomNavBar: React.FC<BottomNavBarProps> = () => {
     const location = useLocation();
 
-    // Map paths to active IDs for backward compat logic if needed, but primarily use paths
     const navItems = [
         { 
             path: '/dashboard',
             label: 'Home', 
-            iconClass: 'bx bx-grid-alt',
+            iconClass: 'bx bxs-dashboard',
             exact: true
         },
         { 
@@ -60,7 +60,6 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = () => {
                                 active ? "text-brand-900" : "text-stone-400 hover:text-stone-600"
                             )}
                         >
-                            {/* Active Pill Background Animation */}
                             {active && (
                                 <MotionDiv 
                                     layoutId="nav-pill"
@@ -69,16 +68,13 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = () => {
                                 />
                             )}
 
-                            {/* Content Layer */}
                             <div className="relative z-10 flex flex-col items-center gap-1">
-                                <i 
-                                    className={cn(
-                                        item.iconClass,
-                                        "transition-transform duration-300 text-2xl",
-                                        active ? "scale-110 text-brand-600" : "",
-                                        isShop && !active ? "text-brand-600" : "" 
-                                    )}
-                                ></i>
+                                <i className={cn(
+                                    "text-2xl transition-transform duration-300",
+                                    item.iconClass,
+                                    active ? "scale-110 text-brand-600" : "",
+                                    isShop && !active ? "text-brand-600" : "" 
+                                )}></i>
                                 <span className={cn(
                                     "text-[10px] font-medium tracking-wide transition-all duration-300",
                                     active ? "text-brand-900 font-bold translate-y-0" : "text-stone-400"

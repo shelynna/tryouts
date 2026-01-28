@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const MotionDiv = motion.div as any;
@@ -28,7 +27,6 @@ export const Modal: React.FC<ModalProps> = ({
     return () => setMounted(false);
   }, []);
 
-  // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -52,7 +50,6 @@ export const Modal: React.FC<ModalProps> = ({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop - Increased blur for premium feel */}
           <MotionDiv
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -62,7 +59,6 @@ export const Modal: React.FC<ModalProps> = ({
             className="fixed inset-0 bg-stone-900/60 backdrop-blur-md z-[9998]"
           />
           
-          {/* Modal Container */}
           <div className="fixed inset-0 z-[9999] overflow-y-auto pointer-events-none">
             <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-6">
               <MotionDiv
@@ -77,7 +73,6 @@ export const Modal: React.FC<ModalProps> = ({
                   className
                 )}
               >
-                {/* Header - Only render if title exists */}
                 {title && (
                   <div className="flex items-center justify-between px-6 py-5 border-b border-stone-100 bg-white sticky top-0 z-10 rounded-t-[24px]">
                     <div className="text-xl font-serif font-bold text-stone-900">{title}</div>
@@ -85,17 +80,15 @@ export const Modal: React.FC<ModalProps> = ({
                       onClick={onClose}
                       className="p-2 rounded-full hover:bg-stone-100 text-stone-400 hover:text-stone-900 transition-colors"
                     >
-                      <X size={20} />
+                      <i className='bx bx-x text-2xl'></i>
                     </button>
                   </div>
                 )}
 
-                {/* Content */}
                 <div className={cn("flex-1 overflow-y-auto", noPadding ? "p-0" : "p-6")}>
                   {children}
                 </div>
 
-                {/* Footer */}
                 {footer && (
                   <div className="px-6 py-4 bg-stone-50 border-t border-stone-100 rounded-b-[24px] flex justify-end gap-3 shrink-0">
                     {footer}

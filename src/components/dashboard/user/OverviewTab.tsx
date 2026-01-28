@@ -7,7 +7,7 @@ import { useBasket } from '../../../context/BasketContext';
 import { API } from '../../../lib/api';
 import { env } from '../../../lib/env'; 
 import { Logger } from '../../../lib/logger';
-import { Crown, ArrowRight } from 'lucide-react';
+import { Crown, ArrowRight, Headphones } from 'lucide-react';
 import { StatusCard } from './overview/StatusCard';
 import { QuickActions } from './overview/QuickActions';
 import { PaymentModal } from './modals/PaymentModal';
@@ -32,38 +32,35 @@ interface OverviewTabProps {
 export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, products, onGoToShop, onAction, refreshUser }) => {
     const { basket, totalValue, refreshBasket, updateLocalPayment } = useBasket();
     const [isPaying, setIsPaying] = useState<'IDLE' | 'PROCESSING' | 'VERIFYING'>('IDLE');
-    
-    // Modal States
     const [confirmModalOpen, setConfirmModalOpen] = useState(false);
     const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
-    
     const [pendingAmount, setPendingAmount] = useState(0);
     const [paymentType, setPaymentType] = useState<'PAYMENT' | 'SUBSCRIPTION'>('PAYMENT');
 
-    // Dynamic Calculations
     const totalPaid = basket?.amountPaid || 0;
     const isEmpty = !basket || !basket.items || basket.items.length === 0;
-    
     const remaining = Math.max(0, totalValue - totalPaid);
     const isFullyPaid = !isEmpty && remaining <= 0 && totalValue > 0;
     const progress = (!isEmpty && totalValue > 0) ? Math.min((totalPaid / totalValue) * 100, 100) : 0;
-    
     const canRequestTopUp = progress >= 70 && progress < 100 && !basket?.topUpRequested && basket?.status === 'OPEN' && user.isSubscriber;
     const isLocked = basket?.status !== 'OPEN';
 
-    // Auto-trigger subscription if intended from registration
     useEffect(() => {
         const checkIntent = async () => {
-            const intent = localStorage.getItem('sml_intent');
-            if (intent === 'SUBSCRIBE' && !user.isSubscriber) {
+            // Check both localStorage (immediate) and User Metadata (cross-device/persistent)
+            const localIntent = localStorage.getItem('sml_intent');
+            const userIntent = user.planIntent; // From AuthContext/Metadata
+
+            if ((localIntent === 'SUBSCRIBE' || userIntent === 'SUBSCRIBER') && !user.isSubscriber) {
+                // Clear local intent to prevent looping if they decline later
                 localStorage.removeItem('sml_intent');
+                // Auto-open payment modal
                 initiatePayment(15, 'SUBSCRIPTION');
             }
         };
         checkIntent();
-    }, [user.isSubscriber]);
+    }, [user.isSubscriber, user.planIntent]);
 
-    // --- PAYMENT HANDLERS ---
     const initiatePayment = (amount: number, type: 'PAYMENT' | 'SUBSCRIPTION' = 'PAYMENT') => {
         if (!amount || amount <= 0) {
             onAction("Please enter a valid amount", "error");
@@ -81,11 +78,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, produc
         const amount = pendingAmount;
         const type = paymentType;
 
-        Logger.info(`Payment Initiated: ${type}`, { amount, user: user.email });
-
         try {
             const publicKey = env.VITE_PAYSTACK_PUBLIC_KEY;
-            
             const loadPaystackScript = (): Promise<boolean> => {
                 return new Promise((resolve) => {
                     if (window.PaystackPop) { resolve(true); return; }
@@ -101,7 +95,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, produc
             const handleSuccess = async (reference: string) => {
                 setIsPaying('VERIFYING');
                 const basketId = type === 'SUBSCRIPTION' ? 'subscription_upgrade' : basket!.id;
-                
                 await API.verifyPayment(reference, basketId, amount);
                 
                 if (type === 'PAYMENT') {
@@ -111,7 +104,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, produc
                 }
                 
                 refreshBasket();
-                
                 onAction(type === 'SUBSCRIPTION' ? "Welcome to Subscriber Tier!" : "Payment Verified!", "success");
                 setIsPaying('IDLE');
             };
@@ -159,8 +151,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, produc
     return (
         <div className="pb-20">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                
-                {/* --- LEFT COLUMN (MAIN CONTENT) - Spans 8 cols --- */}
                 <div className="lg:col-span-8 space-y-6">
                     <StatusCard 
                         basket={basket}
@@ -176,7 +166,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, produc
                         isPaying={isPaying === 'PROCESSING'}
                     />
 
-                    {/* Basket Quick Preview Table */}
                     {!isEmpty && (
                         <Card className="hidden lg:block border border-stone-200">
                             <div className="flex justify-between items-center mb-4">
@@ -207,13 +196,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, produc
                                                 <td className="px-4 py-3 text-right font-bold text-stone-900">{formatCurrency(item.totalPrice)}</td>
                                             </tr>
                                         ))}
-                                        {basket?.items.length > 5 && (
-                                            <tr>
-                                                <td colSpan={3} className="px-4 py-3 text-center text-xs text-stone-400 bg-stone-50">
-                                                    + {basket.items.length - 5} more items
-                                                </td>
-                                            </tr>
-                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -221,10 +203,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, produc
                     )}
                 </div>
 
-                {/* --- RIGHT COLUMN (SIDEBAR) - Spans 4 cols --- */}
                 <div className="lg:col-span-4 space-y-6">
-                    
-                    {/* Upgrade Banner (If not subscribed) */}
                     {!user.isSubscriber && (
                         <div className="bg-gradient-to-br from-brand-900 to-stone-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-10 bg-brand-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
@@ -261,11 +240,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, produc
                         showTopUpError={(msg) => onAction(msg, 'error')}
                     />
 
-                    {/* Help Mini-Widget */}
                     <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
-                                <i className='bx bx-support text-xl'></i>
+                                <Headphones size={20} />
                             </div>
                             <div>
                                 <p className="font-bold text-stone-900 text-sm">Need Help?</p>

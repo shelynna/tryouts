@@ -18,6 +18,7 @@ interface ProductFormModalProps {
 export const ProductFormModal: React.FC<ProductFormModalProps> = ({ isOpen, onClose, product, onSave, notify }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploading, setIsUploading] = useState(false);
+    
     const [formData, setFormData] = useState<Partial<Product> & { sellerPhone?: string }>({
         name: '', category: PRODUCT_CATEGORIES[0], size: '', price: 0, description: '', image: '', isActive: true, stockStatus: 'IN_STOCK', sellerPhone: ''
     });
@@ -91,7 +92,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({ isOpen, onCl
             <div className="flex flex-col lg:flex-row gap-8">
                 {/* Image Upload Section */}
                 <div className="w-full lg:w-5/12 space-y-4">
-                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">Product Image</label>
+                    <div className="flex justify-between items-end">
+                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest">Product Image</label>
+                    </div>
                     <div 
                         className="aspect-[4/5] rounded-3xl bg-stone-50 border-2 border-dashed border-stone-200 hover:border-brand-400 hover:bg-brand-50/10 transition-all cursor-pointer relative overflow-hidden group flex flex-col items-center justify-center text-center p-6"
                         onClick={() => fileInputRef.current?.click()}
@@ -120,7 +123,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({ isOpen, onCl
                             <>
                                 <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4 text-brand-500"><ImageIcon size={32} /></div>
                                 <h4 className="font-bold text-stone-700 mb-1">No Image</h4>
-                                <p className="text-xs text-stone-400 mb-4">Click to upload or drag and drop</p>
+                                <p className="text-xs text-stone-400 mb-4">Click to upload</p>
                                 <div className="bg-stone-200 px-4 py-2 rounded-lg text-xs font-bold text-stone-600">Choose file</div>
                             </>
                         )}

@@ -4,7 +4,7 @@ import { Card, Button } from '../../../ui';
 import { formatCurrency, cn } from '../../../../lib/utils';
 import { Basket, BasketStatus } from '../../../../types';
 import { motion } from 'framer-motion';
-import { Check, ShoppingBag, XCircle, PackageCheck, AlertTriangle, CreditCard, Lock, ArrowRight } from 'lucide-react';
+import { Check, XCircle, PackageCheck, CreditCard, Lock, ArrowRight, QrCode } from 'lucide-react';
 
 const MotionDiv = motion.div as any;
 
@@ -23,14 +23,11 @@ interface StatusCardProps {
 }
 
 export const StatusCard: React.FC<StatusCardProps> = ({
-    basket, isEmpty, isLocked, isFullyPaid, remaining, totalPaid, totalValue, progress,
+    basket, isEmpty, isLocked, remaining, totalPaid, totalValue, progress,
     onGoToShop, onInitiatePayment, isPaying
 }) => {
     const [paymentAmount, setPaymentAmount] = useState('');
 
-    // --- STATES THAT REPLACE THE CARD COMPLETELY ---
-
-    // State: Collected
     if (basket?.status === BasketStatus.COLLECTED) {
         return (
             <div className="bg-emerald-50 rounded-3xl p-8 border border-emerald-100 flex flex-col items-center text-center gap-4">
@@ -45,7 +42,6 @@ export const StatusCard: React.FC<StatusCardProps> = ({
         );
     }
 
-    // State: Cancelled
     if (basket?.status === BasketStatus.CANCELLED) {
         return (
             <div className="bg-red-50 rounded-3xl p-8 border border-red-100 flex flex-col items-center text-center gap-4">
@@ -58,7 +54,6 @@ export const StatusCard: React.FC<StatusCardProps> = ({
         );
     }
 
-    // State: Delivery Ready (QR Code)
     if (basket?.deliveryCode) {
         return (
             <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-lg flex flex-col md:flex-row items-center justify-between gap-8">
@@ -70,19 +65,17 @@ export const StatusCard: React.FC<StatusCardProps> = ({
                     <p className="text-stone-500 text-sm">Present this code at your pickup point</p>
                 </div>
                 <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100 shrink-0">
-                    <i className='bx bx-qr text-[120px] text-stone-900 leading-none'></i>
+                    <QrCode size={120} className="text-stone-900" />
                 </div>
             </div>
         );
     }
 
-    // --- MAIN FINANCIAL CARD (Dark Theme) ---
     return (
         <div className={cn(
             "rounded-3xl overflow-hidden shadow-2xl relative transition-all duration-300",
             isLocked ? "bg-stone-100 border border-stone-200" : "bg-stone-900 text-white"
         )}>
-            {/* Background Decor */}
             {!isLocked && (
                 <>
                     <div className="absolute top-0 right-0 p-32 bg-stone-800 rounded-full blur-3xl -mr-16 -mt-16 opacity-50 pointer-events-none"></div>
@@ -91,7 +84,6 @@ export const StatusCard: React.FC<StatusCardProps> = ({
             )}
 
             <div className="p-6 md:p-8 relative z-10">
-                {/* Header Row */}
                 <div className="flex justify-between items-start mb-8">
                     <div>
                         <p className={cn("text-xs font-bold uppercase tracking-widest mb-1", isLocked ? "text-stone-500" : "text-stone-400")}>
@@ -111,7 +103,6 @@ export const StatusCard: React.FC<StatusCardProps> = ({
                     </div>
                 </div>
 
-                {/* Progress Section */}
                 {!isEmpty && (
                     <div className="mb-8">
                         <div className="flex justify-between text-xs font-bold mb-2 opacity-80">
@@ -133,7 +124,6 @@ export const StatusCard: React.FC<StatusCardProps> = ({
                     </div>
                 )}
 
-                {/* Footer Actions */}
                 {!isLocked && !isEmpty && remaining > 0 ? (
                     <div className="bg-white/5 rounded-2xl p-4 md:p-1 flex flex-col md:flex-row gap-3 backdrop-blur-sm border border-white/10">
                         <div className="relative flex-1">

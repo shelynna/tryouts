@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { Button, Card } from '../../components/ui';
 import { CheckCircle, XCircle, Loader2, Mail } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { ASSETS } from '../../assets';
 import { supabase } from '../../lib/supabaseClient';
 
 interface VerifyEmailProps {
@@ -15,40 +14,79 @@ interface VerifyEmailProps {
 export const VerifyEmail: React.FC<VerifyEmailProps> = ({ onNavigate, onSuccess }) => {
   const { refreshUser } = useAuth();
   const [status, setStatus] = useState<'PENDING' | 'SUCCESS' | 'ERROR'>('PENDING');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-      // In Supabase, the "Magic Link" or "Confirmation Link" usually contains an access_token in the URL hash
-      // e.g. #access_token=...&refresh_token=...&type=signup
-      // The Supabase client automatically detects this and sets the session.
-      
-      const checkSession = async () => {
-          // Wait briefly for Supabase client to process the hash
-          await new Promise(r => setTimeout(r, 1000));
-          
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (session) {
-              setStatus('SUCCESS');
-              await refreshUser();
-              setTimeout(() => {
+      let isMounted = true;
+
+      const finishVerification = async () => {
+          if (!isMounted) return;
+          setStatus('SUCCESS');
+          await refreshUser();
+          setTimeout(() => {
+              if (isMounted) {
                   onSuccess("Identity verified! Welcome.");
-                  onNavigate('DASHBOARD');
-              }, 2000);
-          } else {
-              // If no session found automatically, it might be an expired link or just a view render
-              // We can't manually "verify" a token easily client-side without the hash flow.
-              setStatus('ERROR');
+                  onNavigate('SHOP');
+              }
+          }, 2000);
+      };
+
+      // 1. Listen for Supabase Auth Events
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_IN' && session) {
+              await finishVerification();
           }
+      });
+
+      // 2. Initial Check & Error Handling
+      const checkSession = async () => {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const queryParams = new URLSearchParams(window.location.search);
+          
+          const errorDesc = hashParams.get('error_description') || queryParams.get('error_description');
+          const errorCode = hashParams.get('error_code') || queryParams.get('error_code');
+
+          if (errorDesc || errorCode) {
+              if (isMounted) {
+                  setStatus('ERROR');
+                  setErrorMessage(errorDesc?.replace(/\+/g, ' ') || "Verification failed.");
+              }
+              return;
+          }
+
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+              await finishVerification();
+              return;
+          }
+
+          // 3. Timeout Failsafe
+          setTimeout(async () => {
+              if (!isMounted || status === 'SUCCESS') return;
+              
+              // Double check
+              const { data: { session: retrySession } } = await supabase.auth.getSession();
+              if (retrySession) {
+                  await finishVerification();
+              } else {
+                  if (isMounted && status === 'PENDING') {
+                      setStatus('ERROR');
+                      setErrorMessage("Verification link has expired or was already used.");
+                  }
+              }
+          }, 5000);
       };
 
       checkSession();
+
+      return () => {
+          isMounted = false;
+          subscription.unsubscribe();
+      };
   }, [refreshUser, onNavigate, onSuccess]);
 
   return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50 p-4 relative overflow-hidden">
-          {/* Background Decor */}
-          <div className="absolute inset-0 z-0 opacity-10 pointer-events-none" style={{ backgroundImage: `url(${ASSETS.AUTH_BG_PATTERN})` }}></div>
-          
           <Card className="max-w-md w-full text-center p-10 relative z-10 shadow-2xl border-white/50 backdrop-blur-sm">
               {status === 'PENDING' && (
                   <div className="py-8 space-y-6">
@@ -77,7 +115,7 @@ export const VerifyEmail: React.FC<VerifyEmailProps> = ({ onNavigate, onSuccess 
                         <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
                             <div className="h-full bg-emerald-500 animate-[loading_2s_ease-in-out_infinite] w-full origin-left"></div>
                         </div>
-                        <p className="text-xs text-stone-400 mt-2 uppercase tracking-widest">Redirecting to Dashboard</p>
+                        <p className="text-xs text-stone-400 mt-2 uppercase tracking-widest">Redirecting to Market</p>
                     </div>
                   </div>
               )}
@@ -88,8 +126,8 @@ export const VerifyEmail: React.FC<VerifyEmailProps> = ({ onNavigate, onSuccess 
                         <XCircle size={48} strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-serif font-bold text-red-900">Link Expired</h2>
-                        <p className="text-stone-500 mt-2">This verification link is invalid or has already been used.</p>
+                        <h2 className="text-2xl font-serif font-bold text-red-900">Link Invalid</h2>
+                        <p className="text-stone-500 mt-2">{errorMessage}</p>
                     </div>
                     <Button onClick={() => onNavigate('LOGIN')} fullWidth variant="outline" className="mt-4">
                         Return to Login

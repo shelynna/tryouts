@@ -1,57 +1,50 @@
 
 import React from 'react';
 import { ASSETS } from '../../assets';
-import { Link } from '../ui/utils';
+// @ts-ignore
+import { Link } from 'react-router-dom';
+import { Instagram, Twitter, Facebook } from 'lucide-react';
 
 interface FooterProps {
   onNavigate?: (view: string) => void;
   onLegal?: (doc: string) => void;
+  logoUrl?: string; // New prop
 }
 
-export const Footer: React.FC<FooterProps> = ({ onNavigate, onLegal }) => {
+export const Footer: React.FC<FooterProps> = ({ onNavigate, onLegal, logoUrl }) => {
   const socialLinks = [
-    { iconClass: "bx bxl-instagram", label: "Instagram" },
-    { iconClass: "bx bxl-twitter", label: "X (Twitter)" },
-    { iconClass: "bx bxl-facebook", label: "Facebook" }
+    { icon: Instagram, label: "Instagram" },
+    { icon: Twitter, label: "X (Twitter)" },
+    { icon: Facebook, label: "Facebook" }
   ];
 
   return (
     <footer className="bg-brand-900 text-stone-300 py-16 font-sans relative overflow-hidden w-full border-t border-white/5">
-      {/* Texture Overlay */}
-      <div 
-        className="absolute inset-0 opacity-[0.05] mix-blend-overlay pointer-events-none"
-        style={{ backgroundImage: `url(${ASSETS.NOISE_OVERLAY})` }}
-      ></div>
-
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-12 border-b border-white/10 pb-16">
-          
-          {/* Brand Column */}
           <div className="md:col-span-4 space-y-8">
             <div className="flex items-center gap-3">
                <div className="p-1 rounded-xl">
-                  {/* Removed SML Text next to logo */}
-                  <img src={ASSETS.LOGO_WHITE} alt="SML" className="h-16 w-auto object-contain" />
+                  <img src={logoUrl || ASSETS.LOGO_WHITE} alt="SML" className="h-16 w-auto object-contain" />
                </div>
             </div>
             <p className="text-base text-stone-400 leading-relaxed font-light">
               Bridging the gap between monthly needs and daily cashflow. Stock your pantry, pay small-small.
             </p>
             <div className="flex gap-4">
-               {socialLinks.map(({ iconClass, label }, i) => (
+               {socialLinks.map(({ icon: Icon, label }, i) => (
                   <a 
                     key={i} 
                     href="#" 
                     aria-label={label}
                     className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-brand-500 hover:text-white hover:border-brand-500 transition-all duration-300"
                   >
-                     <i className={`${iconClass} text-xl`}></i>
+                     <Icon size={20} />
                   </a>
                ))}
             </div>
           </div>
 
-          {/* Quick Links */}
           <div className="md:col-span-4 md:col-start-6">
             <h4 className="font-serif font-medium text-white text-lg mb-6">Platform</h4>
             <ul className="space-y-4 text-sm font-medium">
@@ -62,7 +55,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onLegal }) => {
             </ul>
           </div>
 
-          {/* Support Links */}
           <div className="md:col-span-2">
             <h4 className="font-serif font-medium text-white text-lg mb-6">Legal</h4>
             <ul className="space-y-4 text-sm font-medium">

@@ -1,20 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from './components/ui/utils';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+// @ts-ignore
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { SystemSettings } from './types';
-import { useToast, Modal } from './components/ui';
-import { UserDashboard } from './pages/UserDashboard';
-import { AdminDashboard } from './pages/AdminDashboard';
-import { LandingView } from './pages/Landing';
-import { ProductsPage } from './pages/Products';
-import { HelpPage } from './pages/Help';
-import { AboutPage } from './pages/About';
-import { PricingCyclePage } from './pages/PricingCycle';
-import { PartnerPage } from './pages/Partner';
+import { useToast, Modal, SplashLoader } from './components/ui';
 import { API } from './lib/api';
 import { ASSETS } from './assets';
 import { ServerStatus } from './components/ui/ServerStatus';
@@ -23,19 +16,29 @@ import { BottomNavBar } from './components/layout/BottomNavBar';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Logger } from './lib/logger';
 import { Loader2 } from 'lucide-react';
+import { SEO } from './components/SEO';
+import DOMPurify from 'dompurify';
 
-// Auth Pages
-import { Login } from './pages/auth/Login';
-import { Register } from './pages/auth/Register';
-import { ForgotPassword } from './pages/auth/ForgotPassword';
-import { ResetPassword } from './pages/auth/ResetPassword';
-import { VerifyEmail } from './pages/auth/VerifyEmail';
-import { HistoryTab } from './components/dashboard/user/HistoryTab';
-import { SettingsTab } from './components/dashboard/user/SettingsTab';
+const UserDashboard = lazy(() => import('./pages/UserDashboard').then(module => ({ default: module.UserDashboard })));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
+const LandingView = lazy(() => import('./pages/Landing').then(module => ({ default: module.LandingView })));
+const ProductsPage = lazy(() => import('./pages/Products').then(module => ({ default: module.ProductsPage })));
+const HelpPage = lazy(() => import('./pages/Help').then(module => ({ default: module.HelpPage })));
+const AboutPage = lazy(() => import('./pages/About').then(module => ({ default: module.AboutPage })));
+const PricingCyclePage = lazy(() => import('./pages/PricingCycle').then(module => ({ default: module.PricingCyclePage })));
+const PartnerPage = lazy(() => import('./pages/Partner').then(module => ({ default: module.PartnerPage })));
+
+const Login = lazy(() => import('./pages/auth/Login').then(module => ({ default: module.Login })));
+const Register = lazy(() => import('./pages/auth/Register').then(module => ({ default: module.Register })));
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword').then(module => ({ default: module.ForgotPassword })));
+const ResetPassword = lazy(() => import('./pages/auth/ResetPassword').then(module => ({ default: module.ResetPassword })));
+const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail').then(module => ({ default: module.VerifyEmail })));
+
+const HistoryTab = lazy(() => import('./components/dashboard/user/HistoryTab').then(module => ({ default: module.HistoryTab })));
+const SettingsTab = lazy(() => import('./components/dashboard/user/SettingsTab').then(module => ({ default: module.SettingsTab })));
 
 const MotionDiv = motion.div as any;
 
-// ScrollToTop Component to reset scroll on route change
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -44,63 +47,71 @@ const ScrollToTop = () => {
   return null;
 };
 
-// Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode, adminOnly?: boolean }> = ({ children, adminOnly = false }) => {
     const { user, isAuthenticated, isLoading, isAdmin } = useAuth();
     
-    if (isLoading) return null; // Let the main loader handle this
+    if (isLoading) return null;
     
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
     }
 
     if (adminOnly && !isAdmin) {
-        // If not admin, redirect to user dashboard
         return <Navigate to="/dashboard" replace />;
     }
 
     return <>{children}</>;
 };
 
+const PageLoader = () => (
+    <div className="flex items-center justify-center min-h-[50vh]">
+        <i className='bx bx-loader-alt bx-spin text-3xl text-brand-600'></i>
+    </div>
+);
+
 export const AppContent: React.FC = () => {
-  const { user, isLoading, logout, isAdmin, isAuthenticated } = useAuth();
+  const { user, isLoading: isAuthLoading, logout, isAdmin, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
   
   const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [isSystemLoading, setIsSystemLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
   const [viewingDoc, setViewingDoc] = useState<{ title: string, content: string } | null>(null);
 
-  // System Initialization
+  // Initialize System Settings
   useEffect(() => { 
+      let isMounted = true;
+      
       const initSystem = async () => {
+          const safetyTimeout = setTimeout(() => {
+              if (isMounted) setIsSystemLoading(false);
+          }, 5000);
+
           try {
              const fetchedSettings = await API.getSettings();
-             setSettings(fetchedSettings);
+             if (isMounted) {
+                 setSettings(fetchedSettings);
+                 setIsSystemLoading(false);
+                 clearTimeout(safetyTimeout);
+             }
           } catch (e) {
-             Logger.error("Critical: Failed to fetch system settings", e);
-             showToast("System is offline. Some features may be unavailable.", "error");
-             useDefaultSettings();
+             Logger.error("Critical: Failed to fetch SML settings", e);
+             if (isMounted) {
+                 useDefaultSettings();
+                 setIsSystemLoading(false);
+                 clearTimeout(safetyTimeout);
+             }
           }
       };
       initSystem();
+      return () => { isMounted = false; };
   }, []);
-
-  // Redirect if logged in and visiting auth pages
-  useEffect(() => {
-      if (isAuthenticated && !isLoading && (location.pathname === '/login' || location.pathname === '/register')) {
-          // Strict Role Based Redirect
-          if (isAdmin) {
-              navigate('/admin');
-          } else {
-              navigate('/dashboard');
-          }
-      }
-  }, [isAuthenticated, isLoading, isAdmin, location.pathname, navigate]);
 
   const useDefaultSettings = () => {
       setSettings({
-        cycleName: 'System Offline',
+        cycleName: 'SML Marketplace',
         paymentStartDate: null,
         paymentEndDate: null,
         lockDate: null,
@@ -110,47 +121,68 @@ export const AppContent: React.FC = () => {
         deliveryDate: null,
         basketOpenDate: null,
         basketLockDate: null,
-        isActive: false,
+        isActive: true,
         basketServiceFeePercentage: 5,
         topUpServiceFeePercentage: 5,
         heroImages: [ASSETS.LANDING_HERO_BG]
     });
   };
 
-  // --- SPLASH SCREEN ---
-  if (isLoading) {
+  // Logic: Show splash only if authentication state is determining OR system settings loading,
+  // BUT skip splash immediately if we are on the public Landing page and not authenticated yet (improves perceived load time).
+  const isLandingPage = location.pathname === '/';
+  
+  useEffect(() => {
+      if (isLandingPage && !isAuthLoading && !isAuthenticated) {
+          // If on landing page and not logged in, hide splash immediately
+          setShowSplash(false);
+      } else if (!isAuthLoading && !isSystemLoading) {
+          // Otherwise wait for everything to load
+          setShowSplash(false);
+      }
+  }, [isLandingPage, isAuthLoading, isAuthenticated, isSystemLoading]);
+
+  const isDataLoading = isAuthLoading || (isSystemLoading && !settings);
+
+  // Determine if we should show the standard public header/footer
+  const showPublicChrome = !isAuthenticated;
+
+  const handleNavigate = (path: string) => {
+      if (path === 'LANDING') navigate('/');
+      else navigate(`/${path.toLowerCase()}`);
+  };
+
+  const logoUrl = settings?.branding?.logo || ASSETS.LOGO;
+  const logoWhiteUrl = settings?.branding?.logoWhite || ASSETS.LOGO_WHITE;
+
+  const handleDashboardNavigate = (path: string) => {
+      if (path === 'SHOP') navigate('/shop');
+      else if (path === 'HELP') navigate('/help');
+      else if (path === 'DASHBOARD') navigate('/dashboard');
+      else if (path.startsWith('/dashboard/')) navigate(path); 
+      else navigate(`/dashboard/${path.toLowerCase()}`);
+  };
+
+  // Only render app content when splash is dismissed
+  // NOTE: If we are on landing page, we bypass this check early via useEffect logic above
+  if (showSplash && (!isLandingPage || isAuthenticated)) {
       return (
-          <div className="min-h-screen bg-[#F5F5F7] flex flex-col items-center justify-center">
-              <div className="animate-pulse flex flex-col items-center gap-4">
-                  <img src={ASSETS.LOGO} className="w-12 h-12" alt="Loading..." />
-                  <Loader2 className="animate-spin text-brand-500" size={24} />
-                  <p className="text-xs font-bold text-stone-400 tracking-widest uppercase">Secure Connection...</p>
-              </div>
-          </div>
+          <SplashLoader 
+            isLoading={isDataLoading} 
+            onComplete={() => setShowSplash(false)} 
+            logoUrl={logoUrl}
+          />
       );
   }
 
-  // Determine if we should show the default Header/Footer
-  const hideChromeRoutes = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/dashboard', '/admin'];
-  const showChrome = !hideChromeRoutes.some(path => location.pathname.startsWith(path));
-  
-  // Specifically for Dashboard Layout wrapping
-  const isDashboardRoute = location.pathname.startsWith('/dashboard');
-
-  // Calculate current view for BottomNavBar
-  let bottomNavView = 'DASHBOARD';
-  if (location.pathname === '/shop') bottomNavView = 'SHOP';
-  else if (location.pathname === '/dashboard/history') bottomNavView = 'HISTORY';
-  else if (location.pathname === '/dashboard/settings') bottomNavView = 'SETTINGS';
-
   return (
-    <div className="min-h-screen bg-[#F5F5F7] text-stone-900 selection:bg-brand-200">
+    <div className="min-h-screen bg-[#F5F5F7] text-stone-900 selection:bg-brand-200 animate-in fade-in zoom-in duration-500">
       <ScrollToTop />
       <ServerStatus />
       <CartDrawer onNavigateToDashboard={() => navigate('/dashboard')} />
       
-      {showChrome && (
-         <Header currentView={location.pathname} setView={(path) => navigate(path === 'LANDING' ? '/' : path.toLowerCase())} />
+      {showPublicChrome && (
+         <Header currentView={location.pathname} setView={handleNavigate} logoUrl={logoUrl} />
       )}
 
       <Modal
@@ -159,119 +191,132 @@ export const AppContent: React.FC = () => {
         title={viewingDoc?.title}
         size="lg"
       >
-        <div className="whitespace-pre-wrap text-sm text-stone-600 leading-relaxed font-medium">
-            {viewingDoc?.content || "No content available."}
-        </div>
+        <div 
+            className="whitespace-pre-wrap text-sm text-stone-600 leading-relaxed font-medium"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(viewingDoc?.content || "No content available.") }}
+        />
       </Modal>
 
-      <main className={showChrome ? "min-h-[calc(100vh-80px)]" : ""}>
-        <AnimatePresence mode='wait'>
-            <Routes location={location} key={location.pathname}>
-                {/* Public Routes */}
-                <Route path="/" element={
-                    <MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-                        <LandingView 
-                            onProceed={() => navigate('/register')} 
-                            onHelp={() => navigate('/about')} 
-                            onSubscribeIntent={() => {
-                                localStorage.setItem('sml_intent', 'SUBSCRIBE');
-                                navigate('/register');
-                            }}
-                            heroImages={settings?.heroImages}
-                        />
-                    </MotionDiv>
-                } />
-                
-                <Route path="/shop" element={
-                    <MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-                        <div className="pt-24 min-h-screen bg-[#F5F5F7]">
-                            <ProductsPage onAction={(msg) => showToast(msg, 'success')} />
-                            {!user && (
-                                <div className="fixed bottom-0 left-0 right-0 p-4 bg-stone-900 text-white text-center z-50">
-                                     Sign in to add items to your basket. <button onClick={() => navigate('/login')} className="underline font-bold">Login</button>
-                                </div>
-                            )}
-                        </div>
-                    </MotionDiv>
-                } />
-
-                <Route path="/help" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><div className="pt-24"><HelpPage onBack={() => navigate('/')} /></div></MotionDiv>} />
-                <Route path="/about" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><div className="pt-20"><AboutPage onBack={() => navigate('/')} onRegister={() => navigate('/register')} /></div></MotionDiv>} />
-                <Route path="/pricing" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><PricingCyclePage onBack={() => navigate('/')} /></MotionDiv>} />
-                <Route path="/partner" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><PartnerPage onBack={() => navigate('/')} /></MotionDiv>} />
-
-                {/* Auth Routes */}
-                <Route path="/login" element={<Login onNavigate={(path) => navigate(path === 'LANDING' ? '/' : `/${path.toLowerCase()}`)} />} />
-                <Route path="/register" element={<Register onNavigate={(path) => navigate(path === 'LANDING' ? '/' : `/${path.toLowerCase()}`)} />} />
-                <Route path="/forgot-password" element={<ForgotPassword onNavigate={(path) => navigate(path === 'LANDING' ? '/' : `/${path.toLowerCase()}`)} />} />
-                <Route path="/reset-password" element={<ResetPassword token={new URLSearchParams(location.search).get('token') || ''} onNavigate={(path) => navigate(`/${path.toLowerCase()}`)} />} />
-                <Route path="/verify-email" element={<VerifyEmail token={new URLSearchParams(location.search).get('token') || ''} onNavigate={(path) => navigate(`/${path.toLowerCase()}`)} onSuccess={(msg) => showToast(msg, 'success')} />} />
-
-                {/* Admin Dashboard */}
-                <Route path="/admin" element={
-                    <ProtectedRoute adminOnly>
-                        <AdminDashboard onAction={(msg, type) => showToast(msg, type)} />
-                    </ProtectedRoute>
-                } />
-
-                {/* User Dashboard Routes (Wrapped in Layout) */}
-                <Route path="/dashboard" element={
-                    <ProtectedRoute>
-                        <DashboardLayout 
-                            user={user!} 
-                            currentView="DASHBOARD" 
-                            onNavigate={(path) => {
-                                if (path === 'SHOP') navigate('/shop');
-                                else if (path === 'HELP') navigate('/help');
-                                else if (path === 'DASHBOARD') navigate('/dashboard');
-                                else navigate(`/dashboard/${path.toLowerCase()}`);
-                            }}
-                            onLogout={() => { logout(); navigate('/'); }}
-                        >
-                            <UserDashboard 
+      <main className={showPublicChrome ? "min-h-[calc(100vh-80px)]" : ""}>
+        <Suspense fallback={<PageLoader />}>
+            <AnimatePresence mode='wait'>
+                <Routes location={location} key={location.pathname}>
+                    
+                    {/* Root: Logic to split Guest / User / Admin */}
+                    <Route path="/" element={
+                        isAuthenticated ? (
+                            isAdmin ? <Navigate to="/admin" replace /> : <Navigate to="/shop" replace />
+                        ) : (
+                            <MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
+                                <SEO title="Home" description="SML helps students in Ghana buy food essentials in bulk and pay small-small." />
+                                <LandingView 
+                                    onProceed={() => navigate('/register')} 
+                                    onHelp={() => navigate('/about')} 
+                                    onSubscribeIntent={() => {
+                                        localStorage.setItem('sml_intent', 'SUBSCRIBE');
+                                        navigate('/register');
+                                    }}
+                                    heroImages={settings?.heroImages}
+                                />
+                            </MotionDiv>
+                        )
+                    } />
+                    
+                    {/* --- PROTECTED USER ROUTES (Wrapped in Dashboard Layout) --- */}
+                    <Route path="/shop" element={
+                        <ProtectedRoute>
+                            <SEO title="Marketplace" />
+                            <DashboardLayout 
                                 user={user!} 
-                                onAction={(msg, type) => showToast(msg, type)} 
-                                onGoToShop={() => navigate('/shop')} 
-                            />
-                        </DashboardLayout>
-                    </ProtectedRoute>
-                } />
-                
-                <Route path="/dashboard/history" element={
-                    <ProtectedRoute>
-                        <DashboardLayout user={user!} currentView="HISTORY" onNavigate={(path) => {
-                            if (path === 'SHOP') navigate('/shop');
-                            else if (path === 'HELP') navigate('/help');
-                            else if (path === 'DASHBOARD') navigate('/dashboard');
-                            else navigate(`/dashboard/${path.toLowerCase()}`);
-                        }} onLogout={() => { logout(); navigate('/'); }}>
-                            <HistoryTab />
-                        </DashboardLayout>
-                    </ProtectedRoute>
-                } />
+                                currentView="SHOP" 
+                                logoUrl={logoWhiteUrl}
+                                onNavigate={handleDashboardNavigate}
+                                onLogout={() => { logout(); navigate('/'); }}
+                            >
+                                <ProductsPage onAction={(msg) => showToast(msg, 'success')} />
+                            </DashboardLayout>
+                        </ProtectedRoute>
+                    } />
 
-                <Route path="/dashboard/settings" element={
-                    <ProtectedRoute>
-                        <DashboardLayout user={user!} currentView="SETTINGS" onNavigate={(path) => {
-                            if (path === 'SHOP') navigate('/shop');
-                            else if (path === 'HELP') navigate('/help');
-                            else if (path === 'DASHBOARD') navigate('/dashboard');
-                            else navigate(`/dashboard/${path.toLowerCase()}`);
-                        }} onLogout={() => { logout(); navigate('/'); }}>
-                            <SettingsTab user={user!} />
-                        </DashboardLayout>
-                    </ProtectedRoute>
-                } />
+                    <Route path="/dashboard" element={
+                        <ProtectedRoute>
+                            <SEO title="My Dashboard" />
+                            <DashboardLayout 
+                                user={user!} 
+                                currentView="DASHBOARD" 
+                                logoUrl={logoWhiteUrl}
+                                onNavigate={handleDashboardNavigate}
+                                onLogout={() => { logout(); navigate('/'); }}
+                            >
+                                <UserDashboard 
+                                    user={user!} 
+                                    onAction={(msg, type) => showToast(msg, type)} 
+                                    onGoToShop={() => navigate('/shop')} 
+                                />
+                            </DashboardLayout>
+                        </ProtectedRoute>
+                    } />
+                    
+                    <Route path="/dashboard/history" element={
+                        <ProtectedRoute>
+                            <SEO title="Order History" />
+                            <DashboardLayout 
+                                user={user!} 
+                                logoUrl={logoWhiteUrl} 
+                                currentView="HISTORY" 
+                                onNavigate={handleDashboardNavigate} 
+                                onLogout={() => { logout(); navigate('/'); }}
+                            >
+                                <HistoryTab />
+                            </DashboardLayout>
+                        </ProtectedRoute>
+                    } />
 
-                {/* Fallback */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-        </AnimatePresence>
+                    <Route path="/dashboard/settings" element={
+                        <ProtectedRoute>
+                            <SEO title="Profile Settings" />
+                            <DashboardLayout 
+                                user={user!} 
+                                logoUrl={logoWhiteUrl} 
+                                currentView="SETTINGS" 
+                                onNavigate={handleDashboardNavigate} 
+                                onLogout={() => { logout(); navigate('/'); }}
+                            >
+                                <SettingsTab user={user!} />
+                            </DashboardLayout>
+                        </ProtectedRoute>
+                    } />
+
+                    {/* --- ADMIN ROUTE --- */}
+                    <Route path="/admin" element={
+                        <ProtectedRoute adminOnly>
+                            <SEO title="Admin Console" />
+                            <AdminDashboard onAction={(msg, type) => showToast(msg, type)} />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* --- PUBLIC PAGES --- */}
+                    <Route path="/help" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><div className="pt-24"><SEO title="Support" /><HelpPage onBack={() => navigate('/')} /></div></MotionDiv>} />
+                    <Route path="/about" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><div className="pt-20"><SEO title="How it Works" /><AboutPage onBack={() => navigate('/')} onRegister={() => navigate('/register')} /></div></MotionDiv>} />
+                    <Route path="/pricing" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><SEO title="Pricing & Cycles" /><PricingCyclePage onBack={() => navigate('/')} /></MotionDiv>} />
+                    <Route path="/partner" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><SEO title="Partner with SML" /><PartnerPage onBack={() => navigate('/')} /></MotionDiv>} />
+
+                    <Route path="/login" element={<><SEO title="Login" /><Login onNavigate={handleNavigate} logoUrl={logoWhiteUrl} /></>} />
+                    <Route path="/register" element={<><SEO title="Sign Up" /><Register onNavigate={handleNavigate} logoUrl={logoWhiteUrl} /></>} />
+                    <Route path="/forgot-password" element={<ForgotPassword onNavigate={handleNavigate} logoUrl={logoWhiteUrl} />} />
+                    <Route path="/reset-password" element={<ResetPassword onNavigate={handleNavigate} />} />
+                    <Route path="/verify-email" element={<VerifyEmail token={new URLSearchParams(location.search).get('token') || ''} onNavigate={handleNavigate} onSuccess={(msg) => showToast(msg, 'success')} />} />
+
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </AnimatePresence>
+        </Suspense>
       </main>
 
-      {showChrome && (
+      {showPublicChrome && (
          <Footer 
-            onNavigate={(path) => navigate(`/${path.toLowerCase()}`)} 
+            onNavigate={handleNavigate} 
+            logoUrl={logoWhiteUrl}
             onLegal={(docTitle) => {
                 let content = "";
                 if(docTitle === 'Privacy Policy') content = settings?.legalContent?.privacyPolicy || "";
@@ -280,16 +325,6 @@ export const AppContent: React.FC = () => {
                 setViewingDoc({ title: docTitle, content });
             }}
          />
-      )}
-      
-      {/* Mobile Nav for Shop/Dashboard contexts */}
-      {(showChrome && location.pathname === '/shop' || isDashboardRoute) && (
-          <BottomNavBar currentView={bottomNavView} onNavigate={(id) => {
-              if (id === 'SHOP') navigate('/shop');
-              else if (id === 'DASHBOARD') navigate('/dashboard');
-              else if (id === 'HISTORY') navigate('/dashboard/history');
-              else if (id === 'SETTINGS') navigate('/dashboard/settings');
-          }} />
       )}
     </div>
   );

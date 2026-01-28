@@ -1,7 +1,6 @@
 
 import React, { useState, useCallback, createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const MotionDiv = motion.div as any;
@@ -23,6 +22,21 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const showToast = useCallback((message: string, type: Toast['type'] = 'success') => {
+    const technicalErrors = [
+      'aborted', 
+      'AbortError', 
+      'signal is aborted', 
+      'Failed to fetch', 
+      'NetworkError',
+      'signal aborted',
+      'reason: undefined'
+    ];
+    
+    if (type === 'error' && technicalErrors.some(err => message?.toLowerCase().includes(err.toLowerCase()))) {
+      console.warn(`[SMM UI Filter] Suppressed technical toast: ${message}`);
+      return;
+    }
+
     const id = Math.random().toString(36).substr(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
@@ -69,16 +83,15 @@ const ToastContainer: React.FC<{ toasts: Toast[], onRemove: (id: string) => void
             "bg-white/95 text-stone-900 border-stone-200"
           )}
         >
-          {/* Icon */}
           <div className={cn(
-              "shrink-0 rounded-full p-1",
+              "shrink-0 rounded-full w-6 h-6 flex items-center justify-center",
               toast.type === 'success' ? "bg-emerald-500 text-white" :
               toast.type === 'error' ? "bg-white/20 text-white" :
               "bg-brand-100 text-brand-600"
           )}>
-             {toast.type === 'success' ? <CheckCircle size={18} strokeWidth={2.5} /> : 
-              toast.type === 'error' ? <AlertCircle size={18} strokeWidth={2.5} /> : 
-              <Info size={18} strokeWidth={2.5} />}
+             {toast.type === 'success' ? <i className='bx bxs-check-circle text-lg'></i> : 
+              toast.type === 'error' ? <i className='bx bxs-error-circle text-lg'></i> : 
+              <i className='bx bxs-info-circle text-lg'></i>}
           </div>
 
           <div className="flex-1 pr-4">
@@ -86,10 +99,9 @@ const ToastContainer: React.FC<{ toasts: Toast[], onRemove: (id: string) => void
           </div>
 
           <button onClick={(e) => { e.stopPropagation(); onRemove(toast.id); }} className="opacity-50 hover:opacity-100 transition-opacity">
-              <X size={16} />
+              <i className='bx bx-x text-xl'></i>
           </button>
 
-          {/* Progress Bar */}
           <MotionDiv 
             initial={{ width: "100%" }}
             animate={{ width: "0%" }}

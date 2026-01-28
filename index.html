@@ -3,31 +3,29 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#062313" />
-    <meta name="description" content="Sɔ ME MU (SMM) - Smart Monthly Living. A pre-purchase platform for students to pay small-small for household essentials." />
+    <meta name="description" content="SML - Smart Monthly Living. A pre-purchase platform for students to pay small-small for household essentials." />
     
-    <!-- Security: Content Security Policy -->
+    <!-- FIX: Relaxed CSP to allow Paystack styles and CDN modules -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
-      script-src 'self' 'unsafe-inline' https://js.paystack.co https://*.paystack.co;
-      connect-src 'self' http://localhost:* wss://*.supabase.co https://*.supabase.co https://api.paystack.co https://*.paystack.co;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://checkout.paystack.com https://paystack.com https://esm.sh;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.paystack.co https://api.smlghana.store https://esm.sh;
       img-src 'self' data: blob: https:;
-      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://paystack.com https://unpkg.com;
-      font-src 'self' https://fonts.gstatic.com https://unpkg.com;
-      frame-src 'self' https://js.paystack.co https://checkout.paystack.com https://standard.paystack.co;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://paystack.com https://esm.sh;
+      font-src 'self' data: https://fonts.gstatic.com https://unpkg.com;
+      frame-src 'self' https://js.paystack.co https://checkout.paystack.com https://standard.paystack.co https://paystack.com;
+      manifest-src 'self';
       object-src 'none';
-      base-uri 'self';
-      form-action 'self';
     ">
     
-    <title>SMM | Smart Monthly Living</title>
+    <title>SML | Smart Monthly Living</title>
     
-    <!-- Favicons -->
-    <link rel="icon" href="/assets/icons/logo-icon.png" sizes="any" type="image/png" />
-    <link rel="apple-touch-icon" href="/assets/icons/logo-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/logo-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/logo-icon.png">
+    <link rel="manifest" href="/manifest.json">
 
-    <!-- Fonts: Poppins (Headings) and Inter (Body) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -35,24 +33,28 @@
     <!-- Boxicons -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
 
-    <!-- Payment Scripts -->
     <script src="https://js.paystack.co/v1/inline.js"></script>
     <script type="importmap">
 {
   "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.91.1",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "framer-motion": "https://esm.sh/framer-motion@^12.29.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0",
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "framer-motion": "https://esm.sh/framer-motion@10.16.5",
+    "lucide-react": "https://esm.sh/lucide-react@0.294.0",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.20.0",
+    "tailwind-merge": "https://esm.sh/tailwind-merge@2.0.0",
+    "clsx": "https://esm.sh/clsx@2.0.0",
+    "zod": "https://esm.sh/zod@3.22.4",
+    "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5.17.19",
+    "react-hook-form": "https://esm.sh/react-hook-form@7.49.3",
+    "react-helmet-async": "https://esm.sh/react-helmet-async@2.0.4",
+    "zustand": "https://esm.sh/zustand@4.5.0",
+    "dompurify": "https://esm.sh/dompurify@3.0.8",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
     "vite": "https://esm.sh/vite@^7.3.1",
-    "tailwind-merge": "https://esm.sh/tailwind-merge@^3.4.0",
-    "clsx": "https://esm.sh/clsx@^2.1.1",
-    "zod": "https://esm.sh/zod@^4.3.6",
-    "react-dom": "https://esm.sh/react-dom@^19.2.4",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.13.0"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
@@ -60,7 +62,6 @@
 </head>
   <body>
     <div id="root"></div>
-    <!-- Vite Entry Point -->
     <script type="module" src="/src/index.tsx"></script>
   <script type="module" src="/index.tsx"></script>
 </body>

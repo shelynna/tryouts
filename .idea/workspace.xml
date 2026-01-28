@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="0af20da6-3675-4ec7-bdfb-ea5768c4e6de" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/dist.zip" beforeDir="false" afterPath="$PROJECT_DIR$/dist.zip" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/.htaccess" beforeDir="false" afterPath="$PROJECT_DIR$/public/.htaccess" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/AppContent.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/AppContent.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/assets/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/assets/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/dashboard/admin/ContentTab.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/dashboard/admin/ContentTab.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/layout/AuthLayout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/layout/AuthLayout.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/layout/DashboardLayout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/layout/DashboardLayout.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/layout/Footer.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/layout/Footer.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/layout/Header.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/layout/Header.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/ui/ServerStatus.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/ServerStatus.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/ui/utils.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ui/utils.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/context/AuthContext.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/context/AuthContext.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/logger.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/logger.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/services/authService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/services/authService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/services/systemService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/services/systemService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/supabaseClient.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/supabaseClient.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pages/AdminDashboard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/pages/AdminDashboard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pages/auth/ForgotPassword.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/pages/auth/ForgotPassword.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pages/auth/Login.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/pages/auth/Login.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pages/auth/Register.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/pages/auth/Register.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pages/auth/ResetPassword.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/pages/auth/ResetPassword.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pages/auth/VerifyEmail.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/pages/auth/VerifyEmail.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/types/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/types/index.ts" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="153" />
+    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 7
+}]]></component>
+  <component name="ProjectId" id="38rgFSQsdPPJg7lUCiqHPicO5fX" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "nodejs_package_manager_path": "npm",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-2fc7cc6b9a17-intellij.indexing.shared.core-IU-253.30387.90" />
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-IU-253.30387.90" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="0af20da6-3675-4ec7-bdfb-ea5768c4e6de" name="Changes" comment="" />
+      <created>1769563002372</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1769563002372</updated>
+      <workItem from="1769563004510" duration="55000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>

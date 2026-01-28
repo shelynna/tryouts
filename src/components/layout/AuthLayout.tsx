@@ -2,7 +2,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ASSETS } from '../../assets';
-import { ArrowLeft, Star } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 const MotionDiv = motion.div as any;
 
@@ -11,11 +11,7 @@ interface AuthLayoutProps {
   title: string;
   subtitle: string;
   onBack?: () => void;
-  testimonial?: {
-    quote: string;
-    author: string;
-    role: string;
-  };
+  logoUrl?: string; 
 }
 
 export const AuthLayout: React.FC<AuthLayoutProps> = ({ 
@@ -23,55 +19,31 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   title, 
   subtitle, 
   onBack,
-  testimonial = {
-    quote: "SML has completely changed how I manage my semester budget. I never have to worry about food shortages mid-month anymore.",
-    author: "Sarah Osei",
-    role: "Medical Student, KNUST"
-  }
+  logoUrl
 }) => {
   return (
     <div className="min-h-screen flex bg-white font-sans selection:bg-brand-200 selection:text-brand-900">
       
       {/* LEFT COLUMN - Visual & Branding (Hidden on mobile) */}
-      <div className="hidden lg:flex w-1/2 relative overflow-hidden flex-col justify-between p-16 text-white">
-        {/* Background Image & Gradient */}
+      <div className="hidden lg:flex w-1/2 relative overflow-hidden flex-col justify-between p-16 text-white bg-stone-900">
+        {/* Background Image - Clean, No Overlay */}
         <div className="absolute inset-0">
            <img 
              src={ASSETS.LANDING_HERO_BG} 
              className="w-full h-full object-cover" 
              alt="Background" 
            />
-           <div className="absolute inset-0 bg-brand-900/95"></div>
-           <div 
-             className="absolute inset-0 opacity-10"
-             style={{ backgroundImage: `url(${ASSETS.AUTH_BG_PATTERN})` }}
-           ></div>
         </div>
 
-        {/* Brand */}
+        {/* Brand - Logo Image Only */}
         <div className="relative z-10">
            <div className="flex items-center gap-2 mb-6">
-              <img src={ASSETS.LOGO_WHITE} alt="SML" className="h-10 w-auto" />
-              <span className="font-serif font-bold text-2xl tracking-tight">SML.</span>
-           </div>
-        </div>
-
-        {/* Testimonial / Value Prop */}
-        <div className="relative z-10 max-w-lg">
-           <div className="flex gap-1 text-amber-400 mb-6">
-              {[1,2,3,4,5].map(i => <Star key={i} size={20} fill="currentColor" />)}
-           </div>
-           <blockquote className="text-2xl font-serif leading-relaxed mb-6 text-white/90">
-             "{testimonial.quote}"
-           </blockquote>
-           <div>
-             <p className="font-bold text-lg">{testimonial.author}</p>
-             <p className="text-brand-200 font-medium">{testimonial.role}</p>
+              <img src={logoUrl || ASSETS.LOGO_WHITE} alt="SML" className="h-16 w-auto object-contain drop-shadow-lg" />
            </div>
         </div>
 
         {/* Footer */}
-        <div className="relative z-10 text-xs text-white/60 uppercase tracking-widest font-medium">
+        <div className="relative z-10 text-xs text-white font-bold uppercase tracking-widest drop-shadow-md">
            © {new Date().getFullYear()} Smart Monthly Living
         </div>
       </div>
@@ -94,7 +66,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
             ) : <div />}
 
             <div className="lg:hidden flex items-center gap-2">
-                 <img src={ASSETS.LOGO} alt="SML" className="h-8 w-auto" />
+                 <img src={logoUrl ? logoUrl.replace('white', 'dark') : ASSETS.LOGO} alt="SML" className="h-8 w-auto" />
             </div>
         </div>
 

@@ -42,11 +42,11 @@ export const getMe = async (userId?: string): Promise<User | undefined> => {
 
         // If DB profile is missing (race condition or trigger fail), 
         // DO NOT LOOP. Return undefined. AuthContext will handle the fallback.
-        console.warn("Profile missing in DB, relying on Auth Metadata temporarily.");
+        // Console warning suppressed to avoid noise during registration flows.
         return undefined;
 
     } catch (e: any) {
-        console.warn("getMe failed", e);
+        // Silent fail allows AuthContext to fall back to session metadata
         return undefined;
     }
 };

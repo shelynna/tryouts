@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { User, UserRole, PickupPoint } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { API } from '../lib/api';
@@ -23,7 +23,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authMsg, setAuthMsg] = useState('');
-
+  
+  // Ref to track current user ID without triggering re-renders in effects
+  const profileIdRef = useRef<string | null>(null);
+  
   // 1. Helper to construct a User object from Session Metadata (Fast Fallback)
   const getUserFromSession = (currentSession: any): User | null => {
       if (!currentSession?.user) return null;
@@ -51,14 +54,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const dbUser = await API.getMe(uid);
           if (dbUser) {
               setProfile(dbUser);
-          } else {
-              // Keep the metadata user if DB fails, don't crash
-              setProfile(getUserFromSession(currentSession));
+              profileIdRef.current = dbUser.id;
+          } else if (!profile) {
+              // Only fallback to session metadata if we don't have a profile yet
+              const sessionUser = getUserFromSession(currentSession);
+              setProfile(sessionUser);
+              if (sessionUser) profileIdRef.current = sessionUser.id;
           }
       } catch (err) {
-          console.warn("Profile fetch error, using fallback", err);
+          if (!profile) {
+              const sessionUser = getUserFromSession(currentSession);
+              setProfile(sessionUser);
+              if (sessionUser) profileIdRef.current = sessionUser.id;
+          }
       }
-  }, []);
+  }, [profile]); // Dependency on profile to check if it exists
 
   useEffect(() => {
     let mounted = true;
@@ -72,9 +82,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (initialSession) {
                 setSession(initialSession);
                 // Set immediate fallback so UI shows "Logged In" instantly
-                setProfile(getUserFromSession(initialSession)); 
-                // Then fetch full data in background
-                fetchProfile(initialSession.user.id, initialSession);
+                const initialUser = getUserFromSession(initialSession);
+                setProfile(initialUser);
+                if (initialUser) profileIdRef.current = initialUser.id;
+                
+                // CRITICAL FIX: Await full profile fetch before releasing loading state
+                // This ensures we have the correct Role (ADMIN/USER) before routing logic runs
+                await fetchProfile(initialSession.user.id, initialSession);
             }
         }
       } catch (error) {
@@ -92,16 +106,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (newSession) {
             setSession(newSession);
-            // If we just signed in or don't have a profile yet
-            if (event === 'SIGNED_IN' || !profile) {
-                setProfile(getUserFromSession(newSession));
-                fetchProfile(newSession.user.id, newSession);
+            
+            // CRITICAL FIX: Only reset profile if the user ID has changed.
+            // Using ref to check current ID prevents stale closure issues.
+            const currentId = profileIdRef.current;
+            const newId = newSession.user.id;
+            const isDifferentUser = currentId !== newId;
+
+            if (isDifferentUser) {
+                const sessionUser = getUserFromSession(newSession);
+                setProfile(sessionUser);
+                profileIdRef.current = newId;
             }
-            setIsLoading(false);
+            
+            // Always try to fetch latest data to ensure sync
+            // Note: We don't await here because this happens after initial load
+            fetchProfile(newSession.user.id, newSession);
+            
+            if (isLoading) setIsLoading(false);
         } else {
             // Signed out
             setSession(null);
             setProfile(null);
+            profileIdRef.current = null;
             setIsLoading(false);
         }
     });
@@ -110,7 +137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, []); // Empty dependency array for setup
 
   const logout = async () => {
     setAuthMsg('Signing out...');
@@ -119,6 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.clear();
         setSession(null);
         setProfile(null);
+        profileIdRef.current = null;
     } catch (e) {
         Logger.error("Logout error", e);
     } finally {

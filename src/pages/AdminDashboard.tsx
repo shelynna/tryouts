@@ -19,6 +19,7 @@ import { API } from '../lib/api';
 import { Button, Modal } from '../components/ui';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 const MotionDiv = motion.div as any;
 
@@ -57,22 +58,44 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
         );
     }
 
+    if (!settings && !isLoading) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-stone-50 gap-6 p-6 text-center">
+                <div className="bg-white p-8 rounded-2xl shadow-xl flex flex-col items-center max-w-sm">
+                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4">
+                        <AlertTriangle size={32} />
+                    </div>
+                    <h3 className="font-bold text-stone-900 text-lg mb-2">Connection Issue</h3>
+                    <p className="text-stone-500 text-sm mb-6">
+                        We couldn't load the system configuration. This might be due to a network error or missing database setup.
+                    </p>
+                    <Button onClick={refreshAdminData} className="gap-2 w-full">
+                        <RefreshCw size={16} /> Retry Connection
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     // Dynamic White Logo
     const logoUrl = settings?.branding?.logoWhite || ASSETS.LOGO_WHITE;
 
     const renderContent = () => {
+        // Safe check for settings
+        if (!settings) return null;
+
         switch(activeTab) {
             case 'OVERVIEW': return <OverviewTab stats={stats} />;
             case 'ORDERS': return <OrdersTab orders={allOrders} />;
-            case 'PRODUCTS': return <ProductsTab products={products} settings={settings!} refreshAdminData={refreshAdminData} notify={onAction} />;
+            case 'PRODUCTS': return <ProductsTab products={products} settings={settings} refreshAdminData={refreshAdminData} notify={onAction} />;
             case 'USERS': return <UsersTab />;
             case 'ASSOCIATES': return <AssociatesTab />;
             case 'DELIVERIES': return <DeliveriesTab />;
             case 'PICKUP': return <PickupTab />;
             case 'TOPUPS': return <TopUpsTab topUps={topUps} refreshAdminData={refreshAdminData} notify={onAction} />;
             case 'PROCUREMENT': return <ProcurementTab procurementList={procurementList} />;
-            case 'CYCLE': return <CycleTab settings={settings!} onSave={async (s) => { try { await API.saveSettings(s); refreshAdminData(); onAction("Settings saved", "success"); } catch(e: any) { onAction(e.message, "error"); } }} />;
-            case 'CONTENT': return <ContentTab settings={settings!} onSave={async (s) => { try { await API.saveSettings(s); refreshAdminData(); onAction("Content saved", "success"); } catch(e: any) { onAction(e.message, "error"); } }} />;
+            case 'CYCLE': return <CycleTab settings={settings} onSave={async (s) => { try { await API.saveSettings(s); refreshAdminData(); onAction("Settings saved", "success"); } catch(e: any) { onAction(e.message, "error"); } }} />;
+            case 'CONTENT': return <ContentTab settings={settings} onSave={async (s) => { try { await API.saveSettings(s); refreshAdminData(); onAction("Content saved", "success"); } catch(e: any) { onAction(e.message, "error"); } }} />;
             case 'LOGS': return <SystemLogsTab />;
             default: return <OverviewTab stats={stats} />;
         }

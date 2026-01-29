@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 export const Badge: React.FC<{ status: string; size?: 'sm' | 'md' }> = ({ status, size = 'md' }) => {
   const styles: Record<string, string> = {
     OPEN: 'bg-stone-100 text-stone-600',
+    PARTIAL: 'bg-blue-50 text-blue-700',
     LOCKED: 'bg-orange-50 text-orange-700',
     PAID: 'bg-emerald-50 text-emerald-700',
     COLLECTED: 'bg-brand-900 text-white',

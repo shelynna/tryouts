@@ -1,14 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card } from '../../ui';
+import { Card, useToast } from '../../ui';
 import { Delivery, PickupPoint } from '../../../types';
 import { API } from '../../../lib/api';
-import { RefreshCw, MapPin, Truck, CheckCircle, Package, ClipboardList } from 'lucide-react';
+import { RefreshCw, MapPin, Truck, CheckCircle, Package, ClipboardList, Wand2, Bell, BellOff, Check } from 'lucide-react';
 
 export const DeliveriesTab: React.FC = () => {
     const [deliveries, setDeliveries] = useState<Delivery[]>([]);
     const [filter, setFilter] = useState('ALL');
     const [loading, setLoading] = useState(false);
+    const [generating, setGenerating] = useState(false);
+    const [notifyUsers, setNotifyUsers] = useState(true);
+    const { showToast } = useToast();
 
     const fetchDeliveries = async () => {
         setLoading(true);
@@ -25,6 +28,43 @@ export const DeliveriesTab: React.FC = () => {
     useEffect(() => {
         fetchDeliveries();
     }, [filter]);
+
+    const handleGenerateManifest = async () => {
+        const msg = notifyUsers 
+            ? "Generate codes and AUTO-NOTIFY students via email?" 
+            : "Generate codes silently (no notifications)?";
+            
+        if (!confirm(msg)) return;
+        
+        setGenerating(true);
+        try {
+            const res = await API.generateDeliveryManifest(notifyUsers);
+            const notifyMsg = res.notified > 0 ? ` and sent ${res.notified} emails` : '';
+            if (res.count > 0) {
+                showToast(`Generated ${res.count} tickets${notifyMsg}.`, 'success');
+                fetchDeliveries();
+            } else {
+                showToast("No new paid baskets found to process.", 'info');
+            }
+        } catch (e: any) {
+            showToast("Failed to generate manifest", "error");
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const handleMarkCollected = async (deliveryId: string, basketId: string, userName: string) => {
+        if (!confirm(`Mark order for ${userName} as COLLECTED?`)) return;
+        
+        try {
+            await API.markDeliveryAsCollected(deliveryId, basketId);
+            showToast(`Marked ${userName}'s order as collected`, 'success');
+            // Optimistic update
+            setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, status: 'COLLECTED' } : d));
+        } catch (e: any) {
+            showToast("Failed to update status", "error");
+        }
+    };
 
     const stats = {
         ready: deliveries.filter(d => d.status === 'READY').length,
@@ -58,13 +98,29 @@ export const DeliveriesTab: React.FC = () => {
             <Card noPadding className="flex flex-col flex-1 min-h-[400px] border-stone-200 shadow-sm overflow-hidden">
                 {/* Toolbar Header */}
                 <div className="p-4 border-b border-stone-100 flex items-center justify-between bg-white sticky top-0 z-10">
-                    <div className="flex items-center gap-2.5">
-                        <div className="bg-stone-100 p-2 rounded-lg text-stone-600">
-                            <ClipboardList size={18} />
-                        </div>
-                        <div>
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-stone-100 p-1.5 rounded-md text-stone-600">
+                                <ClipboardList size={16} />
+                            </div>
                             <h3 className="font-bold text-stone-900 leading-tight text-sm">Dispatch Feed</h3>
-                            <p className="text-[10px] text-stone-500 font-medium">Live Queue</p>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={handleGenerateManifest}
+                                disabled={generating}
+                                className="bg-brand-900 hover:bg-brand-800 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg flex items-center gap-2 disabled:opacity-50 transition-colors shadow-sm"
+                            >
+                                {generating ? 'Processing...' : <><Wand2 size={12} /> Auto-Generate</>}
+                            </button>
+                            <button 
+                                onClick={() => setNotifyUsers(!notifyUsers)}
+                                className={`p-1.5 rounded-lg border transition-all ${notifyUsers ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-stone-50 border-stone-200 text-stone-400'}`}
+                                title={notifyUsers ? "Notifications ON" : "Notifications OFF"}
+                            >
+                                {notifyUsers ? <Bell size={12} /> : <BellOff size={12} />}
+                            </button>
                         </div>
                     </div>
                     
@@ -103,10 +159,13 @@ export const DeliveriesTab: React.FC = () => {
                             </div>
                             <p className="font-bold text-stone-600">All caught up!</p>
                             <p className="text-xs text-stone-400 mt-1">No pending deliveries found.</p>
+                            <button onClick={handleGenerateManifest} disabled={generating} className="mt-4 text-brand-600 text-xs font-bold hover:underline">
+                                Generate Manifest for Paid Orders
+                            </button>
                         </div>
                     ) : (
                         deliveries.map(d => (
-                            <div key={d.id} className="bg-white p-4 rounded-xl border border-stone-100 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] flex items-center justify-between group active:scale-[0.99] transition-transform">
+                            <div key={d.id} className="bg-white p-4 rounded-xl border border-stone-100 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] flex items-center justify-between group">
                                 <div className="flex items-center gap-3 overflow-hidden">
                                     {/* Status Icon */}
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${d.status === 'COLLECTED' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
@@ -120,19 +179,36 @@ export const DeliveriesTab: React.FC = () => {
                                             <span className="flex items-center gap-1 bg-stone-100 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wide text-stone-600 border border-stone-200">
                                                 <MapPin size={10} /> {d.pickupPoint}
                                             </span>
-                                            {/* Optional: Add phone if space allows, or handle click to call */}
+                                            {/* Phone number display */}
+                                            <span className="text-[10px] text-stone-400 font-mono hidden sm:inline">{d.phone}</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Delivery Code */}
-                                <div className="text-right pl-3 shrink-0">
-                                    <div className="font-mono font-bold text-base text-stone-800 tracking-wider bg-stone-100 px-2 py-1 rounded-md border border-stone-200">
-                                        {d.deliveryCode.split('-').pop()} {/* Showing last segment for brevity, typically unique enough per hall */}
+                                {/* Delivery Code & Action */}
+                                <div className="flex items-center gap-3">
+                                    <div className="text-right hidden md:block">
+                                        <div className="font-mono font-bold text-sm text-stone-800 tracking-wider">
+                                            {d.deliveryCode}
+                                        </div>
+                                        <p className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${d.status === 'READY' ? 'text-blue-500' : 'text-emerald-500'}`}>
+                                            {d.status === 'READY' ? 'Pending Pickup' : 'Collected'}
+                                        </p>
                                     </div>
-                                    <p className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${d.status === 'READY' ? 'text-blue-500' : 'text-emerald-500'}`}>
-                                        {d.status === 'READY' ? 'Pending' : 'Done'}
-                                    </p>
+
+                                    {d.status === 'READY' ? (
+                                        <button 
+                                            onClick={() => handleMarkCollected(d.id, d.basketId, d.fullName)}
+                                            className="bg-brand-900 text-white p-2 rounded-lg hover:bg-brand-800 shadow-sm transition-transform active:scale-95 flex items-center gap-2 text-xs font-bold"
+                                            title="Mark as Collected"
+                                        >
+                                            <Check size={16} /> <span className="hidden sm:inline">Mark Collected</span>
+                                        </button>
+                                    ) : (
+                                        <div className="bg-emerald-50 text-emerald-600 p-2 rounded-lg border border-emerald-100">
+                                            <CheckCircle size={16} />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))

@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Product } from '../../types';
-import { Plus, Minus, RefreshCw, ShoppingCart, ImageOff } from 'lucide-react';
+import { Plus, ShoppingCart, ImageOff, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { cn } from '../../lib/utils';
 import { ASSETS } from '../../assets';
@@ -19,44 +20,38 @@ interface ProductCardProps {
 
 export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({ product, count, isLocked, onIncrement, onDecrement, onClick }, ref) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [imgSrc, setImgSrc] = useState<string>('');
+  
+  // Safe initialization to prevent 'blob:...' error on first render
+  const getSafeImage = (p: Product) => {
+      const img = p.image || (p.images && p.images[0]);
+      // Explicitly block local blob URLs that might have been saved erroneously
+      if (img && !img.startsWith('blob:')) return img;
+      return ASSETS.PRODUCT_PLACEHOLDER;
+  };
+
+  const [imgSrc, setImgSrc] = useState<string>(getSafeImage(product));
   const [hasImageError, setHasImageError] = useState(false);
   
   const isSoldOut = product.stockStatus === 'SOLD_OUT';
 
-  // Initialize and sync image source
+  // Sync image source if product changes
   useEffect(() => {
-    const primaryImage = product.image || (product.images && product.images[0]);
-    if (primaryImage) {
-        setImgSrc(primaryImage);
+    const newSrc = getSafeImage(product);
+    if (newSrc !== imgSrc) {
+        setImgSrc(newSrc);
         setHasImageError(false);
-    } else {
-        setImgSrc(ASSETS.PRODUCT_PLACEHOLDER);
-        setHasImageError(true);
     }
   }, [product]);
 
   const handleAdd = async (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (isLoading || isLocked || isSoldOut) return;
+      if (isLoading || isSoldOut) return;
+      
       setIsLoading(true);
       try {
           await onIncrement(product);
       } catch (error) {
           console.debug("Increment suppressed", error);
-      } finally {
-          setIsLoading(false);
-      }
-  };
-
-  const handleDecrement = async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (isLoading || isLocked) return;
-      setIsLoading(true);
-      try {
-          await onDecrement(product);
-      } catch (error) {
-          console.debug("Decrement suppressed", error);
       } finally {
           setIsLoading(false);
       }
@@ -119,66 +114,23 @@ export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({
            </AnimatePresence>
            
            {/* Actions Overlay */}
-           {!isLocked && !isSoldOut && (
-               <div className={cn(
-                   "absolute bottom-4 right-4 left-4 transition-all duration-300 transform z-20",
-                   count > 0 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0"
-               )}>
-                   <AnimatePresence mode="wait">
-                       {count === 0 ? (
-                           <MotionDiv
-                                key="add-btn"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                           >
-                               <button 
-                                 onClick={handleAdd}
-                                 disabled={isLoading}
-                                 className={cn(
-                                     "w-full h-12 bg-white/95 backdrop-blur-md rounded-2xl flex items-center justify-center gap-2 shadow-2xl hover:bg-brand-900 hover:text-white transition-all text-stone-900 font-bold text-xs uppercase tracking-widest",
-                                     isLoading && "opacity-70 cursor-wait"
-                                 )}
-                               >
-                                   {isLoading ? <RefreshCw size={16} className="animate-spin" /> : <Plus size={16} />}
-                                   Add to Basket
-                               </button>
-                           </MotionDiv>
+           {!isSoldOut && (
+               <div className="absolute bottom-3 right-3 z-20">
+                   <button 
+                     onClick={handleAdd}
+                     disabled={isLoading}
+                     className={cn(
+                         "w-12 h-12 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform",
+                         isLoading ? "bg-stone-100" : "bg-white hover:bg-brand-900 hover:text-white text-stone-900",
+                         count > 0 ? "bg-brand-900 text-white" : ""
+                     )}
+                   >
+                       {isLoading ? (
+                           <Loader2 size={20} className="animate-spin text-stone-400" />
                        ) : (
-                           <MotionDiv
-                                key="stepper"
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 10 }}
-                                className="flex items-center bg-stone-900 text-white rounded-2xl p-1 shadow-2xl gap-1 backdrop-blur-md border border-white/10"
-                           >
-                               <button 
-                                   onClick={handleDecrement} 
-                                   disabled={isLoading}
-                                   className="h-10 w-10 flex items-center justify-center hover:bg-stone-800 rounded-xl transition-colors disabled:opacity-50"
-                               >
-                                   <Minus size={16} />
-                               </button>
-                               <div className="flex-1 text-center flex flex-col items-center justify-center h-10">
-                                   <MotionDiv 
-                                        key={count} 
-                                        initial={{ scale: 0.8 }} 
-                                        animate={{ scale: 1 }}
-                                        className="font-mono font-bold text-sm leading-none"
-                                   >
-                                       {isLoading ? "..." : `Qty: ${count}`}
-                                   </MotionDiv>
-                               </div>
-                               <button 
-                                   onClick={handleAdd} 
-                                   disabled={isLoading}
-                                   className="h-10 w-10 flex items-center justify-center hover:bg-stone-800 rounded-xl transition-colors disabled:opacity-50"
-                               >
-                                   <Plus size={16} />
-                               </button>
-                           </MotionDiv>
+                           <Plus size={24} strokeWidth={2.5} />
                        )}
-                   </AnimatePresence>
+                   </button>
                </div>
            )}
         </div>
@@ -197,11 +149,6 @@ export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({
                 <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest">
                     {product.size} • {product.category}
                 </p>
-                {count > 0 && (
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                        Added
-                    </span>
-                )}
            </div>
         </div>
       </MotionDiv>

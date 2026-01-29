@@ -1,3 +1,4 @@
+
 import { supabase } from '../supabaseClient';
 import { Logger } from '../logger';
 import { formatCurrency } from '../utils';
@@ -17,20 +18,34 @@ export const verifyPayment = async (reference: string, basketId: string, amount:
         throw error;
     }
 
-    // ENRICHED LOGGING: Fetch user details to make the log human-readable
-    // We fire and forget this fetch to avoid slowing down the UI
+    // --- FORMATTED SUCCESS LOG ---
     getMe().then(user => {
-        Logger.transaction(
-            `Payment of ${formatCurrency(amount)} verified for ${user?.fullName || 'Unknown User'}`, 
-            {
-                amount,
-                reference,
-                type,
-                basketId,
-                pickupPoint: user?.pickupPoint,
-                phone: user?.phoneNumber
-            }
-        );
+        const dateStr = new Date().toLocaleString('en-GB', { 
+            day: 'numeric', month: 'short', year: 'numeric', 
+            hour: '2-digit', minute: '2-digit' 
+        });
+        
+        // Extract Details safely
+        const receiptNumber = data?.receipt_number || data?.id || 'N/A';
+        const channel = data?.authorization?.channel || 'Mobile Money';
+        const last4 = data?.authorization?.last4 ? `X${data.authorization.last4}` : 'X...';
+
+        const logMessage = `
+${formatCurrency(amount)}
+
+Transaction Details
+
+Reference ${reference}
+
+Receipt Number ${receiptNumber}
+
+Date ${dateStr}
+
+${channel} Ending with ${last4}
+`.trim();
+
+        // Pass null or empty object for context if you don't want it printed next to the string in console
+        Logger.transaction(logMessage, {});
     });
 
     return { status: true, data };

@@ -141,7 +141,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                                 <button 
                                     onClick={onIncrement}
                                     className="w-10 h-full flex items-center justify-center hover:text-stone-900 text-stone-500 transition-colors disabled:opacity-30 active:scale-95"
-                                    disabled={isLocked || isSoldOut}
+                                    disabled={isSoldOut}
                                 >
                                     <Plus size={18} />
                                 </button>
@@ -151,16 +151,25 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                             <Button 
                                 fullWidth 
                                 size="lg"
-                                disabled={isLocked || isSoldOut}
+                                disabled={isSoldOut}
                                 onClick={onIncrement}
                                 className={cn(
                                     "h-12 md:h-14 text-base font-bold shadow-xl shadow-brand-900/20 rounded-xl", 
                                     isSoldOut ? "bg-stone-300 text-white border-none shadow-none cursor-not-allowed" : "bg-brand-900 text-white hover:bg-brand-800"
                                 )}
                             >
-                                {isSoldOut ? 'Sold Out' : (currentQuantity === 0 ? 'Add to Basket' : `Update Basket (${currentQuantity})`)}
+                                {isSoldOut ? 'Sold Out' : (
+                                    currentQuantity === 0 
+                                        ? (isLocked ? 'Add to Next Cycle' : 'Add to Basket') 
+                                        : (isLocked ? `Update Next Cycle (${currentQuantity})` : `Update Basket (${currentQuantity})`)
+                                )}
                             </Button>
                         </div>
+                        {isLocked && !isSoldOut && (
+                            <p className="text-[10px] text-center text-brand-600 font-medium mt-2 bg-brand-50 p-1 rounded-lg">
+                                Current cycle is locked. Item will be added to your <strong>New Basket</strong>.
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

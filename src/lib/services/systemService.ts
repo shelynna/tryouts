@@ -19,8 +19,8 @@ export const getActiveCycle = async (forceRefresh = false): Promise<Cycle | null
         const { data, error } = await supabase.from('cycles').select('*').eq('is_active', true).maybeSingle();
         
         if (error) {
-            // Suppress error log for aborts
             const lowMsg = error.message?.toLowerCase();
+            // Suppress aborts/network issues, but warn on schema errors
             if (!lowMsg?.includes('aborted') && !lowMsg?.includes('abort') && !lowMsg?.includes('signal')) {
                 console.warn("Cycle fetch issue:", error);
             }
@@ -57,7 +57,18 @@ export const getSettings = async (forceRefresh = false): Promise<SystemSettings>
         return cachedSettings;
     }
 
+    const defaults = {
+        cycleName: 'SML Marketplace',
+        isActive: false,
+        basketServiceFeePercentage: 5,
+        topUpServiceFeePercentage: 5,
+        heroImages: [],
+        branding: {}
+    };
+
     try {
+        // Use allSettled to ensure that if 'app_settings' table is missing, we still get cycle info
+        // and if both fail, we return defaults.
         const [configResult, activeCycle] = await Promise.allSettled([
             supabase.from('app_settings').select('value').eq('key', 'GLOBAL_CONFIG').maybeSingle(),
             getActiveCycle(forceRefresh)
@@ -65,13 +76,6 @@ export const getSettings = async (forceRefresh = false): Promise<SystemSettings>
 
         const config = configResult.status === 'fulfilled' ? (configResult.value as any).data : null;
         const cycle = activeCycle.status === 'fulfilled' ? activeCycle.value : null;
-
-        const defaults = {
-            basketServiceFeePercentage: 5,
-            topUpServiceFeePercentage: 5,
-            heroImages: [],
-            branding: {}
-        };
 
         const combined = { ...defaults, ...(config?.value || {}) };
 
@@ -94,11 +98,10 @@ export const getSettings = async (forceRefresh = false): Promise<SystemSettings>
         lastFetchTime = now;
         return settings;
     } catch (e) {
+        // Fallback to minimal valid settings on unexpected error
         return {
-            cycleName: 'SML',
-            isActive: false,
-            basketServiceFeePercentage: 5,
-            topUpServiceFeePercentage: 5
+            ...defaults,
+            cycleName: 'System Offline'
         } as SystemSettings;
     }
 };
@@ -157,7 +160,6 @@ export const checkHealth = async (): Promise<HealthCheckResult> => {
         const { error } = await supabase.from('app_settings').select('key').limit(1);
         if (error) {
             if (error.code === '42P01') return { status: 'DB_ERROR', message: 'Database Setup Required' };
-            // Production Abort check
             const lowMsg = error.message?.toLowerCase();
             if (lowMsg?.includes('aborted') || lowMsg?.includes('abort') || lowMsg?.includes('signal')) {
                  return { status: 'ONLINE' }; 
@@ -173,7 +175,6 @@ export const checkHealth = async (): Promise<HealthCheckResult> => {
 export const reportError = (err: any) => {
     const msg = typeof err === 'string' ? err : err.message;
     const lowMsg = msg?.toLowerCase();
-    // CRITICAL: Silent ignore of abort signals/technical noise
     if (lowMsg?.includes('abort') || lowMsg?.includes('signal') || lowMsg?.includes('fetch')) return;
     Logger.error('SML Client Error', err);
 };

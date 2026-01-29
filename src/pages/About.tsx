@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { Button } from '../components/ui';
-import { ArrowLeft, ShieldCheck, Package, Truck, Users, CheckCircle, ArrowRight, Wallet, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, ArrowRight, UserPlus, ShoppingCart, CreditCard, Truck, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { ASSETS } from '../assets';
 
 const MotionDiv = motion.div as any;
 
@@ -11,148 +12,155 @@ interface AboutPageProps {
     onRegister?: () => void;
 }
 
-export const AboutPage: React.FC<AboutPageProps> = ({ onBack, onRegister }) => (
-  <div className="font-sans selection:bg-brand-100 bg-[#FDFDFD] min-h-screen pb-20">
-    
-    <section className="relative pt-24 pb-16 px-6 max-w-5xl mx-auto text-center">
-        <MotionDiv 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-        >
-            <span className="text-brand-600 font-bold uppercase tracking-widest text-xs mb-4 block">What is SML?</span>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-stone-900 mb-6 tracking-tight leading-tight">
-                Secure all your essential foodstuffs for the month at wholesale prices.
-            </h1>
-            <p className="text-lg md:text-xl text-stone-500 font-light leading-relaxed max-w-3xl mx-auto">
-                Smart Monthly Living (SML) helps students and households secure all their essential foodstuffs for the month at wholesale prices, pay in flexible installments (“small-small”), and enjoy free delivery.
-            </p>
-        </MotionDiv>
-    </section>
+export const AboutPage: React.FC<AboutPageProps> = ({ onBack, onRegister }) => {
+    const steps = [
+        {
+            id: '01',
+            title: "Join & Verify",
+            desc: "Create your free account. We verify every student to ensure a secure community. No hidden fees, just simple access.",
+            icon: <UserPlus className="w-6 h-6 text-white" />,
+            color: "bg-blue-600",
+            lightColor: "bg-blue-50"
+        },
+        {
+            id: '02',
+            title: "Build Your Basket",
+            desc: "Browse our wholesale marketplace. Add essential items like Rice, Oil, and Provisions. Your price is locked the moment you add to cart.",
+            icon: <ShoppingCart className="w-6 h-6 text-white" />,
+            color: "bg-brand-600",
+            lightColor: "bg-brand-50"
+        },
+        {
+            id: '03',
+            title: "Pay Small-Small",
+            desc: "Don't have the full amount? No problem. Make partial payments via Mobile Money whenever you have cash. GHS 10 today, GHS 20 tomorrow.",
+            icon: <CreditCard className="w-6 h-6 text-white" />,
+            color: "bg-purple-600",
+            lightColor: "bg-purple-50"
+        },
+        {
+            id: '04',
+            title: "Delivery Day",
+            desc: "On the 28th of every month, we set up distribution points at your hall (Hall 7, Conti, etc.). Show your code, collect your goods.",
+            icon: <Truck className="w-6 h-6 text-white" />,
+            color: "bg-stone-800",
+            lightColor: "bg-stone-100"
+        }
+    ];
 
-    <section className="py-20 bg-stone-50 border-y border-stone-100">
-        <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center mb-16">
-                <h2 className="text-3xl font-serif font-bold text-brand-900">How It Works – Step by Step</h2>
-            </div>
-
-            <div className="grid md:grid-cols-5 gap-8 relative">
-                <div className="hidden md:block absolute top-12 left-[10%] right-[10%] h-0.5 bg-stone-200 z-0"></div>
-
-                {[
-                    { 
-                        step: "1", 
-                        title: "Choose Your SML Package", 
-                        desc: "Select items that fit your lifestyle and budget. Each order includes monthly food essentials and access to member-only benefits.", 
-                        icon: <Package size={24} /> 
-                    },
-                    { 
-                        step: "2", 
-                        title: "Pay Small-Small", 
-                        desc: "You can pay weekly, bi-weekly, or whenever you have spare cash, as long as payment is completed before delivery day.", 
-                        icon: <Wallet size={24} /> 
-                    },
-                    { 
-                        step: "3", 
-                        title: "We Buy in Bulk", 
-                        desc: "SML buys directly from producers and distributors in bulk, allowing us to offer lower prices while maintaining quality.", 
-                        icon: <ShoppingCart size={24} /> 
-                    },
-                    { 
-                        step: "4", 
-                        title: "We Deliver to You", 
-                        desc: "Once payments are completed, your items are packed and delivered to your hostel or campus pickup point.", 
-                        icon: <Truck size={24} /> 
-                    },
-                    { 
-                        step: "5", 
-                        title: "Enjoy Member Benefits", 
-                        desc: "Active SML members get access to deal drops, emergency food support, reward challenges, and referral bonuses.", 
-                        icon: <Users size={24} /> 
-                    }
-                ].map((item, i) => (
-                    <div key={i} className="relative z-10 flex flex-col items-center text-center group">
-                        <div className="w-24 h-24 bg-white border-4 border-stone-100 rounded-full flex flex-col items-center justify-center mb-6 shadow-sm group-hover:border-brand-500 group-hover:scale-110 transition-all duration-300">
-                            <div className="text-brand-600 mb-1">{item.icon}</div>
-                            <span className="text-xs font-bold text-stone-300 group-hover:text-brand-300">0{item.step}</span>
+    return (
+        <div className="font-sans bg-white min-h-screen selection:bg-brand-100 pb-20">
+            
+            {/* HERO */}
+            <div className="relative pt-32 pb-20 md:pt-40 md:pb-32 px-6 overflow-hidden">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[120%] h-[500px] bg-brand-50/50 rounded-[100%] blur-3xl -z-10 -mt-20"></div>
+                
+                <div className="max-w-4xl mx-auto text-center">
+                    <MotionDiv 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.6 }}
+                    >
+                        <span className="inline-block py-1 px-3 rounded-full bg-brand-100 text-brand-800 text-[10px] font-bold uppercase tracking-widest mb-6">
+                            The SML Concept
+                        </span>
+                        <h1 className="text-4xl sm:text-5xl md:text-7xl font-heading font-extrabold text-stone-900 mb-8 leading-tight tracking-tight">
+                            Smart Monthly <br className="hidden md:block"/> <span className="text-brand-600">Sustenance.</span>
+                        </h1>
+                        <p className="text-lg md:text-xl text-stone-500 leading-relaxed max-w-2xl mx-auto mb-10">
+                            We bridge the gap between your monthly allowance and daily hunger. 
+                            Secure wholesale food prices now, pay gradually, and collect on campus.
+                        </p>
+                        
+                        <div className="flex flex-col sm:flex-row justify-center gap-4">
+                            {onRegister && (
+                                <Button onClick={onRegister} size="xl" className="rounded-full px-8 shadow-xl shadow-brand-900/20">
+                                    Get Started
+                                </Button>
+                            )}
+                            <Button variant="outline" size="xl" onClick={onBack} className="rounded-full px-8 bg-white border-stone-200">
+                                Back Home
+                            </Button>
                         </div>
-                        <h3 className="font-bold text-stone-900 text-lg mb-2 leading-tight">{item.title}</h3>
-                        <p className="text-sm text-stone-500 leading-relaxed px-2">{item.desc}</p>
-                    </div>
-                ))}
-            </div>
-        </div>
-    </section>
-
-    <section className="py-24 px-6 max-w-6xl mx-auto">
-        <div className="grid md:grid-cols-2 gap-12 lg:gap-20 items-stretch">
-            <div className="flex flex-col justify-center">
-                <h2 className="text-3xl font-serif font-bold text-stone-900 mb-8">Why Students Choose SML</h2>
-                <div className="space-y-4">
-                    {[
-                        "Saves money",
-                        "Reduces food stress",
-                        "Helps with budgeting",
-                        "Prevents mid-month hunger"
-                    ].map((point, i) => (
-                        <div key={i} className="flex items-center gap-4 p-5 bg-white border border-stone-100 rounded-2xl shadow-sm hover:border-brand-200 hover:shadow-md transition-all">
-                            <div className="w-8 h-8 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
-                                <CheckCircle size={16} />
-                            </div>
-                            <span className="font-medium text-stone-700 text-lg">{point}</span>
-                        </div>
-                    ))}
+                    </MotionDiv>
                 </div>
             </div>
 
-            <div className="bg-brand-900 text-white p-10 md:p-12 rounded-[2rem] relative overflow-hidden shadow-2xl flex flex-col justify-between">
-                <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                <div className="absolute bottom-0 left-0 p-24 bg-accent-500/20 rounded-full blur-3xl -ml-12 -mb-12 pointer-events-none"></div>
-                
-                <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="p-2 bg-white/10 rounded-lg backdrop-blur-md">
-                            <ShieldCheck size={28} className="text-accent-500" />
+            {/* PROCESS - ZIG ZAG */}
+            <div className="max-w-5xl mx-auto px-6 py-12 space-y-24">
+                {steps.map((step, i) => (
+                    <MotionDiv 
+                        key={i}
+                        initial={{ opacity: 0, y: 40 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: "-100px" }}
+                        transition={{ duration: 0.6 }}
+                        className={`flex flex-col md:flex-row gap-8 md:gap-16 items-center ${i % 2 === 1 ? 'md:flex-row-reverse' : ''}`}
+                    >
+                        {/* Visual Side */}
+                        <div className="flex-1 w-full">
+                            <div className={`relative aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl ${step.lightColor} flex items-center justify-center p-8 group`}>
+                                <div className={`w-20 h-20 rounded-2xl ${step.color} flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-500`}>
+                                    {React.cloneElement(step.icon as React.ReactElement<any>, { className: "w-10 h-10 text-white" })}
+                                </div>
+                                <div className="absolute bottom-6 right-6 font-black text-9xl text-stone-900/5 select-none">
+                                    {step.id}
+                                </div>
+                            </div>
                         </div>
-                        <h3 className="text-2xl font-serif font-bold">Is SML Safe & Legit?</h3>
-                    </div>
-                    
-                    <div className="space-y-8">
-                        <div>
-                            <p className="text-4xl sm:text-5xl font-bold text-white mb-4 tracking-tight">Yes.</p>
-                            <p className="text-brand-100 text-xl leading-relaxed font-light border-l-2 border-accent-500 pl-4">
-                                You pay for food and receive food. <br/>
-                                <strong className="text-white font-medium">Simple and transparent.</strong>
+
+                        {/* Text Side */}
+                        <div className="flex-1 space-y-4 text-center md:text-left">
+                            <div className={`inline-flex w-10 h-10 rounded-full items-center justify-center font-bold text-white ${step.color} mb-2 shadow-md`}>
+                                {step.id}
+                            </div>
+                            <h3 className="text-3xl font-heading font-bold text-stone-900">{step.title}</h3>
+                            <p className="text-lg text-stone-500 leading-relaxed font-medium">
+                                {step.desc}
                             </p>
                         </div>
-                        
-                        <div className="pt-8 border-t border-white/10">
-                            <p className="text-xs text-brand-300 uppercase tracking-widest font-bold mb-4">Who Can Join?</p>
-                            <ul className="space-y-3 text-brand-50">
-                                <li className="flex gap-3 items-start"><div className="w-1.5 h-1.5 bg-accent-500 rounded-full mt-2 shrink-0"></div> <span className="flex-1">Students managing tight budgets.</span></li>
-                                <li className="flex gap-3 items-start"><div className="w-1.5 h-1.5 bg-accent-500 rounded-full mt-2 shrink-0"></div> <span className="flex-1">Workers tired of salary to salary stress.</span></li>
-                                <li className="flex gap-3 items-start"><div className="w-1.5 h-1.5 bg-accent-500 rounded-full mt-2 shrink-0"></div> <span className="flex-1">Families who want structure.</span></li>
-                                <li className="flex gap-3 items-start"><div className="w-1.5 h-1.5 bg-accent-500 rounded-full mt-2 shrink-0"></div> <span className="flex-1">Anyone who wants affordable, predictable monthly shopping.</span></li>
-                            </ul>
-                        </div>
+                    </MotionDiv>
+                ))}
+            </div>
+
+            {/* BENEFITS GRID */}
+            <div className="py-24 bg-stone-50 mt-20 border-t border-stone-100">
+                <div className="max-w-6xl mx-auto px-6">
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl font-serif font-bold text-stone-900 mb-4">Why 1,500+ Students Choose SML</h2>
+                        <p className="text-stone-500">More than just a shop. It's a survival strategy.</p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-6">
+                        {[
+                            { title: "Wholesale Prices", desc: "Cheaper than the 'bush canteen' or night market. We buy direct from factories." },
+                            { title: "No Food Stress", desc: "Focus on your lectures knowing your end-of-month sustenance is secured." },
+                            { title: "Credit Facility", desc: "Loyal subscribers unlock Top-Ups to complete their baskets when cash is tight." },
+                            { title: "Campus Delivery", desc: "No carrying heavy rice bags from town. We bring it to your hall." },
+                            { title: "Flexible Payment", desc: "Pay GHS 5 or GHS 500. The system accepts any amount via Momo." },
+                            { title: "Money Back", desc: "If you don't complete payment, your funds roll over. You never lose money." }
+                        ].map((b, i) => (
+                            <div key={i} className="bg-white p-8 rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-shadow">
+                                <CheckCircle2 className="text-brand-500 mb-4 h-8 w-8" />
+                                <h4 className="font-bold text-stone-900 text-lg mb-2">{b.title}</h4>
+                                <p className="text-stone-500 text-sm leading-relaxed">{b.desc}</p>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
 
-    <div className="text-center pb-16 pt-8 px-6">
-        <h2 className="text-2xl md:text-3xl font-serif font-bold text-stone-900 mb-8">Ready for affordable, predictable monthly shopping?</h2>
-        <div className="flex flex-col sm:flex-row justify-center gap-4">
-            {onRegister && (
-                <Button onClick={onRegister} size="lg" className="shadow-xl shadow-brand-900/20 px-8">
-                    Join SML Now <ArrowRight size={18} className="ml-2" />
-                </Button>
-            )}
-            <Button variant="outline" onClick={onBack} size="lg" className="gap-2 border-stone-300 hover:border-stone-900 text-stone-600 hover:text-stone-900">
-                <ArrowLeft size={18} /> Back to Home
-            </Button>
+            {/* FOOTER CTA */}
+            <div className="max-w-3xl mx-auto px-6 pt-24 text-center">
+                <h2 className="text-3xl font-heading font-bold text-stone-900 mb-6">Ready to secure your month?</h2>
+                <div className="flex justify-center gap-4">
+                    {onRegister && (
+                        <Button onClick={onRegister} size="lg" className="px-10 h-14 text-lg bg-stone-900 text-white hover:bg-stone-800 rounded-2xl shadow-xl">
+                            Join Now <ArrowRight className="ml-2 w-5 h-5"/>
+                        </Button>
+                    )}
+                </div>
+            </div>
         </div>
-    </div>
-  </div>
-);
+    );
+};

@@ -6,7 +6,6 @@ import * as basketService from './services/basketService';
 import * as paymentService from './services/paymentService';
 import * as deliveryService from './services/deliveryService';
 import * as adminService from './services/adminService';
-import * as aiService from './services/aiService';
 
 // Consolidate all services into a single API object for backward compatibility
 export const API = {
@@ -16,6 +15,5 @@ export const API = {
     ...basketService,
     ...paymentService,
     ...deliveryService,
-    ...adminService,
-    ...aiService
+    ...adminService
 };

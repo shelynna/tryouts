@@ -11,11 +11,12 @@
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://checkout.paystack.com https://paystack.com https://esm.sh;
-      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.paystack.co https://api.smlghana.store https://esm.sh;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.paystack.co https://api.smlghana.store https://esm.sh blob:;
       img-src 'self' data: blob: https:;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://paystack.com https://esm.sh;
       font-src 'self' data: https://fonts.gstatic.com https://unpkg.com;
       frame-src 'self' https://js.paystack.co https://checkout.paystack.com https://standard.paystack.co https://paystack.com;
+      worker-src 'self' blob:;
       manifest-src 'self';
       object-src 'none';
     ">
@@ -54,7 +55,8 @@
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react/": "https://esm.sh/react@^19.2.4/",
     "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0"
   }
 }
 </script>

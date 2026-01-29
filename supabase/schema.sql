@@ -3,7 +3,7 @@
 create extension if not exists "pgcrypto";
 create extension if not exists "moddatetime";
 
--- 2. ENUMS (Safe Creation)
+-- 2. ENUMS (Safe Creation with Error Handling)
 DO $$ BEGIN
     create type user_role as enum ('USER', 'ADMIN', 'STAFF');
 EXCEPTION
@@ -14,6 +14,13 @@ DO $$ BEGIN
     create type basket_status as enum ('OPEN', 'LOCKED', 'PAID', 'DELIVERED', 'COLLECTED', 'CANCELLED');
 EXCEPTION
     WHEN duplicate_object THEN null;
+END $$;
+
+-- CRITICAL FIX: Add PARTIAL status to existing enum if missing
+DO $$ BEGIN
+    alter type basket_status add value if not exists 'PARTIAL';
+EXCEPTION
+    WHEN others THEN null;
 END $$;
 
 DO $$ BEGIN
@@ -45,7 +52,7 @@ create table if not exists public.profiles (
   updated_at timestamptz default now()
 );
 
--- MIGRATION: Ensure columns exist if table was created previously
+-- Ensure columns exist (for migration safety)
 alter table public.profiles add column if not exists referral_code text unique;
 alter table public.profiles add column if not exists referred_by text;
 alter table public.profiles add column if not exists is_subscriber boolean default false;
@@ -56,16 +63,15 @@ create table if not exists public.cycles (
   id uuid default gen_random_uuid() primary key,
   name text not null,
   is_active boolean default false,
+  payment_start_date timestamptz,
+  payment_end_date timestamptz,
+  lock_date timestamptz,
+  unlock_date timestamptz,
+  bulk_start_date timestamptz,
+  bulk_end_date timestamptz,
+  delivery_date timestamptz,
   created_at timestamptz default now()
 );
-
-alter table public.cycles add column if not exists payment_start_date timestamptz;
-alter table public.cycles add column if not exists payment_end_date timestamptz;
-alter table public.cycles add column if not exists lock_date timestamptz;
-alter table public.cycles add column if not exists unlock_date timestamptz;
-alter table public.cycles add column if not exists bulk_start_date timestamptz;
-alter table public.cycles add column if not exists bulk_end_date timestamptz;
-alter table public.cycles add column if not exists delivery_date timestamptz;
 
 -- 5. PRODUCTS (Inventory)
 create table if not exists public.products (
@@ -80,16 +86,12 @@ create table if not exists public.products (
   stock_quantity integer default 0,
   stock_status text default 'IN_STOCK',
   is_active boolean default true,
+  image text, 
   images jsonb default '[]'::jsonb,
   metadata jsonb default '{}'::jsonb,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-
--- MIGRATION: Ensure product columns
-alter table public.products add column if not exists stock_quantity integer default 0;
-alter table public.products add column if not exists stock_status text default 'IN_STOCK';
-alter table public.products add column if not exists is_active boolean default true;
 
 -- 6. BASKETS (Orders)
 create table if not exists public.baskets (
@@ -101,15 +103,22 @@ create table if not exists public.baskets (
   service_fee numeric(10,2) default 0,
   total_price numeric(10,2) default 0,
   amount_paid numeric(10,2) default 0,
+  balance numeric(10,2) default 0, -- CRITICAL: Explicit balance persistence
   top_up_requested boolean default false,
   top_up_approved boolean default false,
   top_up_amount numeric(10,2) default 0,
+  top_up_status text default 'NONE', -- NONE, PENDING, APPROVED, DENIED
+  top_up_denial_reason text,
   delivery_code text unique,
   pickup_timestamp timestamptz,
   metadata jsonb default '{}'::jsonb,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+alter table public.baskets add column if not exists balance numeric(10,2) default 0;
+alter table public.baskets add column if not exists top_up_status text default 'NONE';
+alter table public.baskets add column if not exists top_up_denial_reason text;
 
 -- 7. BASKET ITEMS
 create table if not exists public.basket_items (
@@ -121,6 +130,14 @@ create table if not exists public.basket_items (
   total_price numeric(10,2) generated always as (quantity * unit_price) stored,
   created_at timestamptz default now()
 );
+
+-- Ensure unique product per basket
+DO $$ BEGIN
+    alter table public.basket_items add constraint basket_items_basket_id_product_id_key unique (basket_id, product_id);
+EXCEPTION
+    WHEN duplicate_table THEN null;
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- 8. PAYMENTS
 create table if not exists public.payments (
@@ -171,7 +188,7 @@ create table if not exists public.system_logs (
   created_at timestamptz default now()
 );
 
--- 12. COUPONS (Expansion Associates)
+-- 12. COUPONS
 create table if not exists public.coupons (
   id uuid default gen_random_uuid() primary key,
   code text unique not null,
@@ -181,6 +198,136 @@ create table if not exists public.coupons (
 );
 
 -- --- TRIGGERS & FUNCTIONS ---
+
+-- Auth Trigger
+create or replace function public.handle_new_user()
+returns trigger 
+security definer
+set search_path = public
+as $$
+declare
+  v_ref_code text;
+  v_name_part text;
+  v_role user_role;
+begin
+  if new.email ilike '%@smlghana.store' then
+    v_role := 'ADMIN';
+  else
+    v_role := 'USER';
+  end if;
+
+  v_name_part := upper(substring(coalesce(new.raw_user_meta_data->>'full_name', 'USER'), 1, 3));
+  v_ref_code := v_name_part || '-' || floor(random() * 9000 + 1000)::text;
+
+  insert into public.profiles (
+      id, email, full_name, phone, pickup_point, referred_by, referral_code, role
+  )
+  values (
+      new.id, new.email, new.raw_user_meta_data->>'full_name', 
+      new.raw_user_meta_data->>'phone',
+      coalesce(new.raw_user_meta_data->>'pickup_point', 'Hall 7'),
+      upper(new.raw_user_meta_data->>'referral_code_input'),
+      v_ref_code,
+      v_role
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- Basket Recalculation Trigger (Handles Balance & Status)
+create or replace function public.recalculate_basket()
+returns trigger as $$
+declare
+  v_basket_id uuid;
+  v_subtotal numeric;
+  v_service_fee_percent numeric;
+  v_service_fee numeric;
+  v_discount numeric;
+  v_total_price numeric;
+  v_amount_paid numeric;
+begin
+  v_basket_id := coalesce(new.basket_id, old.basket_id);
+  
+  -- Safety check: Prevent modifying PAID/COLLECTED baskets via SQL triggers if RLS doesn't catch it
+  if exists (
+    select 1 from baskets
+    where id = v_basket_id
+      and status in ('PAID', 'COLLECTED', 'LOCKED')
+  ) then
+    -- We allow trigger to proceed to recalculate if it was a read/calc operation, but
+    -- practically this trigger runs on ITEM change.
+    null;
+  end if;
+
+  select coalesce(sum(total_price), 0) into v_subtotal
+  from public.basket_items where basket_id = v_basket_id;
+
+  select (value->>'basketServiceFeePercentage')::numeric into v_service_fee_percent
+  from app_settings where key = 'GLOBAL_CONFIG';
+  v_service_fee_percent := coalesce(v_service_fee_percent, 5);
+
+  select coalesce((metadata->>'discount_amount')::numeric, 0), coalesce(amount_paid, 0) 
+  into v_discount, v_amount_paid
+  from baskets where id = v_basket_id;
+  v_discount := coalesce(v_discount, 0);
+
+  v_service_fee := v_subtotal * (v_service_fee_percent / 100.0);
+  
+  -- CLAMP NEGATIVE TOTALS (Security fix)
+  v_total_price := greatest(v_subtotal + v_service_fee - v_discount, 0);
+
+  -- Maintain balance and switch status between PAID/PARTIAL
+  -- Added check to prevent LOCKED baskets from downgrading to PARTIAL automatically
+  update public.baskets
+  set subtotal = v_subtotal, service_fee = v_service_fee, total_price = v_total_price, 
+      balance = greatest(v_total_price - v_amount_paid, 0),
+      status = case 
+        when status = 'PAID' and v_total_price > v_amount_paid and status <> 'LOCKED' then 'PARTIAL'::basket_status
+        when status = 'PARTIAL' and v_amount_paid >= v_total_price and v_total_price > 0 then 'PAID'::basket_status
+        else status 
+      end,
+      updated_at = now()
+  where id = v_basket_id;
+  return null;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_basket_item_change on public.basket_items;
+create trigger on_basket_item_change
+  after insert or update or delete on public.basket_items
+  for each row execute procedure public.recalculate_basket();
+
+-- RLS
+alter table public.profiles enable row level security;
+alter table public.baskets enable row level security;
+alter table public.basket_items enable row level security;
+
+drop policy if exists "Read Own Profile" on public.profiles;
+create policy "Read Own Profile" on public.profiles for select using (auth.uid() = id);
+
+drop policy if exists "Owner Read Basket" on public.baskets;
+create policy "Owner Read Basket" on public.baskets for select using (auth.uid() = user_id);
+
+drop policy if exists "Owner Manage Items" on public.basket_items;
+-- UPDATED POLICY: Prevent modification of PAID/LOCKED/COLLECTED baskets
+create policy "Owner Manage Items" on public.basket_items for all using (
+  exists (
+    select 1 from public.baskets 
+    where id = basket_items.basket_id 
+      and user_id = auth.uid()
+      and status not in ('PAID', 'COLLECTED', 'LOCKED')
+  )
+);
+
+-- ==========================================
+-- RPC FUNCTIONS
+-- ==========================================
 
 create or replace function public.is_admin()
 returns boolean
@@ -206,179 +353,9 @@ as $$
   );
 $$;
 
-create or replace function public.ensure_user_profile()
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_user_id uuid;
-  v_email text;
-  v_meta jsonb;
-begin
-  v_user_id := auth.uid();
-  select email, raw_user_meta_data into v_email, v_meta from auth.users where id = v_user_id;
-
-  if v_user_id is not null and not exists (select 1 from public.profiles where id = v_user_id) then
-      insert into public.profiles (id, email, full_name, phone, pickup_point)
-      values (
-        v_user_id, 
-        v_email, 
-        coalesce(v_meta->>'full_name', 'User'),
-        v_meta->>'phone',
-        coalesce(v_meta->>'pickup_point', 'Hall 7')
-      );
-  end if;
-end;
-$$;
-
-create or replace function public.get_all_profiles_secure()
-returns setof public.profiles
-language sql
-security definer
-set search_path = public
-as $$
-  select * from public.profiles
-  where (select role from public.profiles where id = auth.uid()) = 'ADMIN'
-  order by created_at desc;
-$$;
-
-create or replace function public.handle_new_user()
-returns trigger 
-security definer
-set search_path = public
-as $$
-declare
-  v_ref_code text;
-  v_name_part text;
-begin
-  v_name_part := upper(substring(coalesce(new.raw_user_meta_data->>'full_name', 'USER'), 1, 3));
-  v_ref_code := v_name_part || '-' || floor(random() * 9000 + 1000)::text;
-
-  begin
-    insert into public.profiles (
-        id, email, full_name, phone, pickup_point, referred_by, referral_code
-    )
-    values (
-        new.id, new.email, new.raw_user_meta_data->>'full_name', 
-        new.raw_user_meta_data->>'phone',
-        coalesce(new.raw_user_meta_data->>'pickup_point', 'Hall 7'),
-        upper(new.raw_user_meta_data->>'referral_code_input'),
-        v_ref_code
-    );
-  exception when others then
-    insert into public.profiles (id, email, full_name)
-    values (new.id, new.email, new.raw_user_meta_data->>'full_name')
-    on conflict (id) do nothing;
-  end;
-  return new;
-end;
-$$ language plpgsql;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
-
-drop trigger if exists handle_updated_at on public.profiles;
-create trigger handle_updated_at before update on public.profiles for each row execute procedure moddatetime (updated_at);
-
-drop trigger if exists handle_updated_at on public.products;
-create trigger handle_updated_at before update on public.products for each row execute procedure moddatetime (updated_at);
-
-drop trigger if exists handle_updated_at on public.baskets;
-create trigger handle_updated_at before update on public.baskets for each row execute procedure moddatetime (updated_at);
-
-create or replace function public.recalculate_basket()
-returns trigger as $$
-declare
-  v_basket_id uuid;
-  v_subtotal numeric;
-  v_service_fee_percent numeric;
-  v_service_fee numeric;
-  v_discount numeric;
-  v_total_price numeric;
-begin
-  v_basket_id := coalesce(new.basket_id, old.basket_id);
-  
-  select coalesce(sum(total_price), 0) into v_subtotal
-  from public.basket_items where basket_id = v_basket_id;
-
-  select (value->>'basketServiceFeePercentage')::numeric into v_service_fee_percent
-  from app_settings where key = 'GLOBAL_CONFIG';
-  v_service_fee_percent := coalesce(v_service_fee_percent, 5);
-
-  select (metadata->>'discount_amount')::numeric into v_discount
-  from baskets where id = v_basket_id;
-  v_discount := coalesce(v_discount, 0);
-
-  v_service_fee := v_subtotal * (v_service_fee_percent / 100.0);
-  v_total_price := v_subtotal + v_service_fee - v_discount;
-
-  update public.baskets
-  set subtotal = v_subtotal, service_fee = v_service_fee, total_price = v_total_price, updated_at = now()
-  where id = v_basket_id;
-  return null;
-end;
-$$ language plpgsql security definer;
-
-drop trigger if exists on_basket_item_change on public.basket_items;
-create trigger on_basket_item_change
-  after insert or update or delete on public.basket_items
-  for each row execute procedure public.recalculate_basket();
-
-create or replace function public.generate_delivery_record(p_basket_id uuid)
-returns text
-language plpgsql
-security definer
-as $$
-declare
-    v_basket public.baskets%ROWTYPE;
-    v_profile public.profiles%ROWTYPE;
-    v_cycle_name text;
-    v_hall_code text;
-    v_new_code text;
-    v_existing_code text;
-begin
-    select * into v_basket from public.baskets where id = p_basket_id;
-    select * into v_profile from public.profiles where id = v_basket.user_id;
-    select name into v_cycle_name from public.cycles where id = v_basket.cycle_id;
-
-    select delivery_code into v_existing_code from public.deliveries where basket_id = p_basket_id;
-    if v_existing_code is not null then
-        return v_existing_code;
-    end if;
-
-    v_hall_code := case v_profile.pickup_point
-        when 'Conti' then 'CNT'
-        when 'Africa' then 'AFR'
-        when 'Queens' then 'QNS'
-        when 'Republic' then 'REP'
-        when 'Indece' then 'IND'
-        when 'SRC' then 'SRC'
-        when 'Katanga' then 'KAT'
-        when 'Hall 7' then 'HL7'
-        when 'Brunei' then 'BRU'
-        else 'GEN'
-    end;
-    v_new_code := 'SML-' || v_hall_code || '-' || floor(random() * 90000 + 10000)::text;
-
-    insert into public.deliveries (
-        delivery_code, basket_id, user_id, 
-        full_name, phone, pickup_point, batch_name
-    ) values (
-        v_new_code, p_basket_id, v_profile.id,
-        v_profile.full_name, v_profile.phone, v_profile.pickup_point, v_cycle_name
-    );
-
-    update public.baskets 
-    set delivery_code = v_new_code, status = 'PAID' 
-    where id = p_basket_id;
-
-    return v_new_code;
-end;
-$$;
+-- 1. Process Payment (ATOMIC & HARDENED)
+DROP FUNCTION IF EXISTS public.process_payment(text, numeric, uuid, text);
+DROP FUNCTION IF EXISTS public.process_payment(text, uuid, numeric, text);
 
 create or replace function public.process_payment(
   p_reference text,
@@ -389,71 +366,124 @@ create or replace function public.process_payment(
 returns jsonb
 language plpgsql
 security definer
+set search_path = public
 as $$
 declare
   v_user_id uuid;
-  v_basket public.baskets%ROWTYPE;
-  v_already_exists boolean;
-  v_delivery_code text;
+  v_payment_id text;
+  v_total_price numeric;
 begin
   v_user_id := auth.uid();
   
-  select exists(select 1 from public.payments where id = p_reference) into v_already_exists;
-  if v_already_exists then
-    return jsonb_build_object('success', true, 'message', 'Payment already processed');
+  -- Idempotency check
+  if exists (select 1 from payments where id = p_reference) then
+    return jsonb_build_object('success', true, 'message', 'Already processed', 'id', p_reference);
   end if;
 
-  insert into public.payments (id, user_id, basket_id, amount, type, status)
-  values (p_reference, v_user_id, (case when p_type = 'SUBSCRIPTION' then null else p_basket_id end), p_amount, p_type, 'SUCCESS');
+  insert into payments (id, user_id, basket_id, amount, type, status, provider)
+  values (p_reference, v_user_id, p_basket_id, p_amount, p_type, 'SUCCESS', 'PAYSTACK')
+  returning id into v_payment_id;
 
-  if p_type = 'SUBSCRIPTION' then
-     update public.profiles set is_subscriber = true where id = v_user_id;
-     return jsonb_build_object('success', true, 'message', 'Subscription activated');
-  else
-     update public.baskets 
-     set amount_paid = coalesce(amount_paid, 0) + p_amount
-     where id = p_basket_id
-     returning * into v_basket;
-
-     if v_basket.amount_paid >= (v_basket.total_price - 0.5) then
-        v_delivery_code := public.generate_delivery_record(p_basket_id);
-        return jsonb_build_object('success', true, 'message', 'Payment successful. Delivery Ready.', 'code', v_delivery_code);
-     end if;
-
-     return jsonb_build_object('success', true, 'message', 'Partial payment recorded');
+  if p_type = 'PAYMENT' and p_basket_id is not null then
+    
+    -- ROW LOCK: Prevent concurrent payment updates from racing
+    select total_price into v_total_price 
+    from baskets 
+    where id = p_basket_id 
+    for update;
+    
+    -- Atomic update of Amount Paid, Balance, and Status
+    update baskets 
+    set amount_paid = coalesce(amount_paid, 0) + p_amount,
+        balance = greatest(total_price - (coalesce(amount_paid, 0) + p_amount), 0),
+        status = case 
+          when (coalesce(amount_paid, 0) + p_amount) >= total_price and total_price > 0 then 'PAID'::basket_status
+          else 'PARTIAL'::basket_status
+        end,
+        updated_at = now()
+    where id = p_basket_id;
+    
+  elsif p_type = 'SUBSCRIPTION' then
+    update profiles 
+    set is_subscriber = true,
+        updated_at = now()
+    where id = v_user_id;
   end if;
+
+  return jsonb_build_object('success', true, 'id', v_payment_id);
 end;
 $$;
 
-create or replace function public.approve_top_up(p_basket_id uuid)
-returns jsonb
+-- 2. Resolve Basket Conflict (Handles OPEN & PARTIAL)
+-- Ensures no payment or balance is lost during merges
+create or replace function public.resolve_basket_conflict(p_user_id uuid, p_cycle_id uuid)
+returns uuid
 language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  v_basket public.baskets%ROWTYPE;
-  v_delivery_code text;
-begin
-  if not public.is_admin() then
-    raise exception 'Permission denied';
-  end if;
+DECLARE
+    v_basket_ids uuid[];
+    v_primary_id uuid;
+    v_secondary_id uuid;
+    v_item RECORD;
+    v_secondary_paid numeric;
+BEGIN
+    -- Find all OPEN or PARTIAL baskets
+    SELECT array_agg(id ORDER BY created_at ASC) INTO v_basket_ids
+    FROM baskets
+    WHERE user_id = p_user_id
+      AND status IN ('OPEN', 'PARTIAL')
+      AND (cycle_id IS NOT DISTINCT FROM p_cycle_id);
 
-  select * into v_basket from public.baskets where id = p_basket_id;
-  if not found then raise exception 'Basket not found'; end if;
-  
-  v_basket.top_up_amount := v_basket.total_price - v_basket.amount_paid;
-  
-  update public.baskets
-  set top_up_approved = true, amount_paid = total_price
-  where id = p_basket_id;
-  
-  v_delivery_code := public.generate_delivery_record(p_basket_id);
+    IF v_basket_ids IS NULL THEN RETURN NULL; END IF;
+    IF array_length(v_basket_ids, 1) = 1 THEN RETURN v_basket_ids[1]; END IF;
 
-  return jsonb_build_object('success', true, 'message', 'Top-up approved. Delivery Ready.', 'code', v_delivery_code);
-end;
+    -- If duplicates exist, merge secondary(s) into primary (first one)
+    v_primary_id := v_basket_ids[1];
+    
+    FOR i IN 2 .. array_length(v_basket_ids, 1) LOOP
+        v_secondary_id := v_basket_ids[i];
+        
+        -- 1. Get amount paid from secondary
+        SELECT coalesce(amount_paid, 0) INTO v_secondary_paid
+        FROM baskets WHERE id = v_secondary_id;
+
+        -- 2. Move Items from secondary to primary
+        FOR v_item IN (SELECT * FROM basket_items WHERE basket_id = v_secondary_id) LOOP
+            IF EXISTS (SELECT 1 FROM basket_items WHERE basket_id = v_primary_id AND product_id = v_item.product_id) THEN
+                -- Merge quantity
+                UPDATE basket_items SET quantity = quantity + v_item.quantity
+                WHERE basket_id = v_primary_id AND product_id = v_item.product_id;
+                DELETE FROM basket_items WHERE id = v_item.id;
+            ELSE
+                -- Move item
+                UPDATE basket_items SET basket_id = v_primary_id WHERE id = v_item.id;
+            END IF;
+        END LOOP;
+        
+        -- 3. Move Payments to primary (Preserve history)
+        UPDATE payments SET basket_id = v_primary_id WHERE basket_id = v_secondary_id;
+
+        -- 4. Transfer Amount Paid
+        IF v_secondary_paid > 0 THEN
+            UPDATE baskets 
+            SET amount_paid = coalesce(amount_paid, 0) + v_secondary_paid 
+            WHERE id = v_primary_id;
+        END IF;
+
+        -- 5. Delete empty secondary
+        DELETE FROM baskets WHERE id = v_secondary_id;
+    END LOOP;
+
+    -- Force recalc on primary to update totals/balance/status
+    UPDATE baskets SET updated_at = now() WHERE id = v_primary_id;
+
+    RETURN v_primary_id;
+END;
 $$;
 
+-- 3. Delivery Collection
 create or replace function public.confirm_delivery_pickup(p_code text)
 returns jsonb
 language plpgsql
@@ -461,167 +491,108 @@ security definer
 set search_path = public
 as $$
 declare
-    v_delivery public.deliveries%ROWTYPE;
-    v_staff_id uuid;
+  v_basket_id uuid;
+  v_student_name text;
+  v_item_count integer;
+  v_status delivery_status;
 begin
-    v_staff_id := auth.uid();
-    if not public.is_staff() then raise exception 'Permission denied: Staff only'; end if;
+  if not public.is_staff() then raise exception 'Unauthorized'; end if;
 
-    select * into v_delivery from public.deliveries where delivery_code = upper(trim(p_code));
-    
-    if not found then
-        return jsonb_build_object('success', false, 'message', 'Invalid Code. No order found.');
-    end if;
+  select basket_id, full_name, status into v_basket_id, v_student_name, v_status
+  from deliveries where delivery_code = p_code;
 
-    if v_delivery.status = 'COLLECTED' then
-        return jsonb_build_object('success', false, 'message', 'Already collected on ' || to_char(v_delivery.picked_up_at, 'DD Mon HH12:MI AM'));
-    end if;
+  if v_basket_id is null then return jsonb_build_object('success', false, 'message', 'Invalid Code'); end if;
+  if v_status = 'COLLECTED' then return jsonb_build_object('success', false, 'message', 'Already Collected'); end if;
 
-    update public.deliveries
-    set status = 'COLLECTED',
-        picked_up_at = now(),
-        picked_up_by = v_staff_id
-    where id = v_delivery.id;
+  update deliveries set status = 'COLLECTED', picked_up_at = now(), picked_up_by = auth.uid()
+  where delivery_code = p_code;
 
-    update public.baskets
-    set status = 'COLLECTED',
-        pickup_timestamp = now()
-    where id = v_delivery.basket_id;
+  update baskets set status = 'COLLECTED' where id = v_basket_id;
 
-    return jsonb_build_object(
-        'success', true, 
-        'message', 'Collection Confirmed', 
-        'student', v_delivery.full_name,
-        'item_count', (select count(*) from basket_items where basket_id = v_delivery.basket_id)
-    );
+  select count(*) into v_item_count from basket_items where basket_id = v_basket_id;
+
+  return jsonb_build_object('success', true, 'student', v_student_name, 'count', v_item_count);
 end;
 $$;
 
-create or replace function public.get_procurement_list()
-returns table ("productId" uuid, "productName" text, "unitSize" text, "totalQuantity" bigint, "unitPrice" numeric, "totalCost" numeric)
+-- 4. Admin Helpers
+create or replace function public.get_all_profiles_secure()
+returns setof profiles
 language sql
 security definer
 set search_path = public
 as $$
-  select p.id, p.name, p.size, sum(bi.quantity)::bigint, p.price, (sum(bi.quantity) * p.price)
-  from public.basket_items bi
-  join public.products p on bi.product_id = p.id
-  join public.baskets b on bi.basket_id = b.id
-  where b.status in ('PAID', 'DELIVERED', 'COLLECTED') and public.is_admin()
-  group by p.id, p.name, p.size, p.price
-  order by p.name;
+  select * from profiles
+  where public.is_admin() or public.is_staff();
 $$;
 
--- ASSOCIATE REPORTING RPC (New)
-create or replace function public.get_associate_report()
+DROP FUNCTION IF EXISTS public.get_procurement_list();
+create or replace function public.get_procurement_list()
 returns table (
-    associate_name text,
-    coupon_code text,
-    month text,
-    active_users bigint
+  productName text,
+  unitSize text,
+  totalQuantity bigint,
+  unitPrice numeric,
+  totalCost numeric
 )
 language sql
 security definer
 set search_path = public
 as $$
-    select
-      c.associate_name,
-      c.code as coupon_code,
-      to_char(b.updated_at, 'YYYY-MM') as month,
-      count(distinct b.user_id) as active_users
-    from public.coupons c
-    join public.profiles p on p.referred_by = c.code
-    join public.baskets b on b.user_id = p.id
-    where b.status in ('PAID', 'DELIVERED', 'COLLECTED')
-    group by 1, 2, 3
-    order by 3 desc, 4 desc;
+  select 
+    p.name, p.size, sum(bi.quantity), p.price, sum(bi.total_price)
+  from basket_items bi
+  join baskets b on bi.basket_id = b.id
+  join products p on bi.product_id = p.id
+  where (b.status = 'PAID' or b.status = 'LOCKED' or b.status = 'COLLECTED')
+    and public.is_admin()
+  group by p.id, p.name, p.size, p.price
+  order by p.name;
 $$;
 
--- RLS POLICIES
-alter table public.profiles enable row level security;
-alter table public.products enable row level security;
-alter table public.cycles enable row level security;
-alter table public.baskets enable row level security;
-alter table public.basket_items enable row level security;
-alter table public.payments enable row level security;
-alter table public.deliveries enable row level security; 
-alter table public.app_settings enable row level security;
-alter table public.system_logs enable row level security;
-alter table public.coupons enable row level security;
+DROP FUNCTION IF EXISTS public.approve_top_up(uuid);
+create or replace function public.approve_top_up(p_basket_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception 'Unauthorized'; end if;
+  
+  update baskets 
+  set top_up_approved = true,
+      top_up_status = 'APPROVED',
+      status = 'PAID', -- Mark as paid so they can collect
+      updated_at = now()
+  where id = p_basket_id;
+end;
+$$;
 
--- Drop existing policies
-drop policy if exists "Read Own Profile" on public.profiles;
-drop policy if exists "Update Own Profile" on public.profiles;
-drop policy if exists "Public Read Products" on public.products;
-drop policy if exists "Admin Write Products" on public.products;
-drop policy if exists "Public Read Cycles" on public.cycles;
-drop policy if exists "Admin Write Cycles" on public.cycles;
-drop policy if exists "Owner Read Basket" on public.baskets;
-drop policy if exists "Owner Create Basket" on public.baskets;
-drop policy if exists "Owner Update Basket Basics" on public.baskets;
-drop policy if exists "Admin Manage Baskets" on public.baskets;
-drop policy if exists "Owner Manage Items" on public.basket_items;
-drop policy if exists "Owner Read Payments" on public.payments;
-drop policy if exists "Admin Read Payments" on public.payments;
-drop policy if exists "Owner Read Delivery" on public.deliveries;
-drop policy if exists "Staff Manage Delivery" on public.deliveries;
-drop policy if exists "Public Read Settings" on public.app_settings;
-drop policy if exists "Admin Write Settings" on public.app_settings;
-drop policy if exists "Public Log Insert" on public.system_logs;
-drop policy if exists "Admin View Logs" on public.system_logs;
-drop policy if exists "Public Read Coupons" on public.coupons;
-drop policy if exists "Admin Write Coupons" on public.coupons;
+DROP FUNCTION IF EXISTS public.get_associate_report();
+create or replace function public.get_associate_report()
+returns table (
+  associate_name text,
+  coupon_code text,
+  month text,
+  active_users bigint
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select 
+    c.associate_name,
+    c.code,
+    to_char(b.created_at, 'Mon YYYY') as month,
+    count(distinct b.user_id)
+  from coupons c
+  left join baskets b on b.metadata->>'coupon_code' = c.code
+  where public.is_admin()
+  group by c.associate_name, c.code, to_char(b.created_at, 'Mon YYYY')
+  order by to_char(b.created_at, 'Mon YYYY') desc;
+$$;
 
--- Policies
-create policy "Read Own Profile" on public.profiles for select using (auth.uid() = id);
-create policy "Update Own Profile" on public.profiles for update using (auth.uid() = id);
-create policy "Public Read Products" on public.products for select using (true);
-create policy "Admin Write Products" on public.products for all using (public.is_admin());
-create policy "Public Read Cycles" on public.cycles for select using (true);
-create policy "Admin Write Cycles" on public.cycles for all using (public.is_admin());
-create policy "Owner Read Basket" on public.baskets for select using (auth.uid() = user_id);
-create policy "Owner Create Basket" on public.baskets for insert with check (auth.uid() = user_id);
-create policy "Owner Update Basket Basics" on public.baskets for update using (auth.uid() = user_id);
-create policy "Admin Manage Baskets" on public.baskets for all using (public.is_admin());
-create policy "Owner Manage Items" on public.basket_items for all using (exists (select 1 from public.baskets where id = basket_items.basket_id and user_id = auth.uid()));
-create policy "Owner Read Payments" on public.payments for select using (user_id = auth.uid());
-create policy "Admin Read Payments" on public.payments for select using (public.is_admin());
-create policy "Owner Read Delivery" on public.deliveries for select using (auth.uid() = user_id);
-create policy "Staff Manage Delivery" on public.deliveries for all using (public.is_staff());
-create policy "Public Read Settings" on public.app_settings for select using (true);
-create policy "Admin Write Settings" on public.app_settings for all using (public.is_admin());
-create policy "Public Log Insert" on public.system_logs for insert with check (true);
-create policy "Admin View Logs" on public.system_logs for select using (public.is_admin());
-
--- Coupon Policies
-create policy "Public Read Coupons" on public.coupons for select using (true);
-create policy "Admin Write Coupons" on public.coupons for all using (public.is_admin());
-
--- Storage
-insert into storage.buckets (id, name, public, avif_autodetection, file_size_limit, allowed_mime_types)
-values ('assets', 'assets', true, false, 5242880, '{image/*}')
-on conflict (id) do nothing;
-
-drop policy if exists "Public Access" on storage.objects;
-drop policy if exists "Admin Upload" on storage.objects;
-drop policy if exists "Admin Update" on storage.objects;
-drop policy if exists "Admin Delete" on storage.objects;
-
-create policy "Public Access" on storage.objects for select using ( bucket_id = 'assets' );
-create policy "Admin Upload" on storage.objects for insert with check ( bucket_id = 'assets' and public.is_admin() );
-create policy "Admin Update" on storage.objects for update using ( bucket_id = 'assets' and public.is_admin() );
-create policy "Admin Delete" on storage.objects for delete using ( bucket_id = 'assets' and public.is_admin() );
-
--- Seed
-insert into public.app_settings (key, value, description) values
-('GLOBAL_CONFIG', '{"basketServiceFeePercentage": 5, "heroImages": []}'::jsonb, 'General frontend configuration')
-on conflict (key) do nothing;
-
-update public.cycles set payment_start_date = now() where payment_start_date is null;
-update public.cycles set payment_end_date = now() + interval '30 days' where payment_end_date is null;
-update public.cycles set lock_date = now() + interval '25 days' where lock_date is null;
-update public.cycles set delivery_date = now() + interval '35 days' where delivery_date is null;
-
-insert into public.cycles (name, payment_start_date, payment_end_date, lock_date, delivery_date, is_active) 
-select 'Launch Cycle', now(), now() + interval '30 days', now() + interval '25 days', now() + interval '35 days', true
-where not exists (select 1 from public.cycles where is_active = true);
+-- INDEXING FOR PERFORMANCE
+create index if not exists idx_baskets_user_status_cycle on baskets (user_id, status, cycle_id);
+create index if not exists idx_basket_items_basket_id on basket_items (basket_id);

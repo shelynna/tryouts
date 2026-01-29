@@ -21,7 +21,7 @@ interface LoginProps {
 
 export const Login: React.FC<LoginProps> = ({ onNavigate, logoUrl }) => {
   const { showToast } = useToast();
-  const { refreshUser } = useAuth(); // We can trigger a fresh fetch, but AuthContext updates automatically now
+  const { refreshUser } = useAuth(); 
   
   const [method, setMethod] = useState<'PASSWORD' | 'MAGIC_LINK'>('PASSWORD');
   const [isLoading, setIsLoading] = useState(false);
@@ -32,6 +32,7 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, logoUrl }) => {
 
   // REACT HOOK FORM SETUP
   const { register, handleSubmit, formState: { errors } } = useForm({
+      mode: 'onChange', // Fix: Validate on change to prevent sticky errors
       defaultValues: {
           email: '',
           password: ''
@@ -39,10 +40,8 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, logoUrl }) => {
   });
 
   const checkUserRoleAndRedirect = async () => {
-      // Small delay to allow AuthContext to update state naturally
       setTimeout(async () => {
           try {
-              // We do a quick check on the profile from API just to be safe about Role
               const user = await API.getMe(); 
               if (user?.role === 'ADMIN') {
                   onNavigate('ADMIN');
@@ -62,7 +61,6 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, logoUrl }) => {
 
     try {
       if (method === 'PASSWORD') {
-          // Standard login
           const { data: authData, error } = await supabase.auth.signInWithPassword({ 
               email: data.email, 
               password: data.password 
@@ -75,7 +73,6 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, logoUrl }) => {
           await checkUserRoleAndRedirect();
 
       } else {
-          // Magic Link
           const { error } = await supabase.auth.signInWithOtp({
               email: data.email,
               options: { emailRedirectTo: window.location.origin }

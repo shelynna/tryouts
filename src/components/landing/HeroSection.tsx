@@ -13,9 +13,24 @@ interface HeroSectionProps {
     images?: string[];
 }
 
-export const HeroSection: React.FC<HeroSectionProps> = ({ onProceed, onHelp }) => {
+export const HeroSection: React.FC<HeroSectionProps> = ({ onProceed, onHelp, images }) => {
+  // Use provided images prop or fallback to default asset
+  const bgImage = (images && images.length > 0) ? images[0] : ASSETS.LANDING_HERO_BG;
+
   return (
       <section className="relative pt-40 pb-24 md:pt-48 md:pb-32 overflow-hidden bg-white text-stone-900">
+        
+        {/* Background Image Layer */}
+        <div className="absolute inset-0 z-0">
+            <img 
+                src={bgImage} 
+                alt="Background" 
+                className="w-full h-full object-cover"
+            />
+            {/* White Overlay gradient to ensure text readability */}
+            <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/80 to-white/100"></div>
+        </div>
+
         <div className="container-padding relative z-10 flex flex-col items-center text-center">
             <MotionDiv
                 initial={{ opacity: 0, y: 20 }}
@@ -35,7 +50,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onProceed, onHelp }) =
                     <Button size="xl" onClick={onProceed} className="rounded-full px-8 shadow-2xl shadow-brand-900/20 group text-lg">
                         Start Shopping <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </Button>
-                    <Button variant="ghost" size="xl" onClick={onHelp} className="rounded-full px-8 text-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100">
+                    <Button variant="ghost" size="xl" onClick={onHelp} className="rounded-full px-8 text-lg text-stone-600 hover:text-stone-900 hover:bg-white/50 backdrop-blur-sm">
                         <PlayCircle className="mr-2 w-5 h-5"/> How it works
                     </Button>
                 </div>

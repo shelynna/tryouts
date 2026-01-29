@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingBag, ArrowRight, AlertCircle, ShieldCheck, Ticket, Plus } from 'lucide-react';
+import { X, ShoppingBag, ArrowRight, AlertCircle, ShieldCheck, Ticket, Plus, LayoutDashboard } from 'lucide-react';
 import { useBasket } from '../../context/BasketContext';
 import { Button, useToast } from '../ui';
 import { formatCurrency } from '../../lib/utils';
@@ -35,7 +35,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard })
   
   const isLocked = basket?.status !== BasketStatus.OPEN && basket !== undefined;
 
-  const handleCheckout = () => {
+  const handleGoToDashboard = () => {
       closeCart();
       onNavigateToDashboard();
   };
@@ -205,7 +205,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard })
                             </MotionDiv>
                         )}
                         <div className="flex justify-between text-xl font-serif font-bold text-brand-900 pt-2 items-baseline">
-                            <span className="text-base font-sans font-normal text-stone-500">Total Payable</span>
+                            <span className="text-base font-sans font-normal text-stone-500">Total Value</span>
                             <MotionSpan 
                                 key={totalValue} 
                                 initial={{ scale: 1.1, color: '#2A9D8F' }}
@@ -221,22 +221,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard })
                 <Button 
                     fullWidth 
                     size="xl" 
-                    onClick={handleCheckout} 
+                    onClick={handleGoToDashboard} 
                     className="shadow-xl shadow-brand-900/20 group relative overflow-hidden"
                     disabled={!basket || !basket.items || basket.items.length === 0}
                 >
                     <span className="relative z-10 flex items-center gap-2">
                         {basket && basket.items && basket.items.length > 0 
-                            ? "Proceed to Payment" 
+                            ? "Go to Dashboard to Pay" 
                             : "Start Shopping"
                         } 
-                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        <LayoutDashboard size={18} className="group-hover:translate-x-1 transition-transform" />
                     </span>
                 </Button>
                 
                 {basket && basket.items && basket.items.length > 0 && (
                     <p className="text-[10px] text-center text-stone-400 mt-4">
-                        Payments are secure and flexible. Pay what you can, when you can.
+                        <strong>Pay Small-Small:</strong> Choose your installment amount on the dashboard.
                     </p>
                 )}
             </div>

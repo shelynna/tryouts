@@ -3,16 +3,34 @@ export function cn(...classes: (string | undefined | null | false)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-export function formatCurrency(amount: number, currency = 'GHS') {
-  return `${currency} ${parseFloat(amount.toString()).toFixed(2)}`;
+export function formatCurrency(amount: number | string | undefined | null, currency = 'GHS') {
+  if (amount === null || amount === undefined) return `${currency} 0.00`;
+  
+  let value: number;
+  
+  if (typeof amount === 'number') {
+      value = amount;
+  } else if (typeof amount === 'string') {
+      value = parseFloat(amount);
+  } else {
+      // Fallback for objects/arrays/etc
+      value = 0;
+  }
+
+  return `${currency} ${isNaN(value) ? '0.00' : value.toFixed(2)}`;
 }
 
 export function formatDate(date: string | Date) {
-  return new Date(date).toLocaleDateString('en-GB', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  if (!date) return 'N/A';
+  try {
+      return new Date(date).toLocaleDateString('en-GB', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+  } catch (e) {
+      return 'Invalid Date';
+  }
 }
 
 /**

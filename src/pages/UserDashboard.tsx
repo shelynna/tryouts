@@ -8,7 +8,7 @@ import { useBasket } from '../context/BasketContext';
 import { useAuth } from '../context/AuthContext';
 import { OverviewTab } from '../components/dashboard/user/OverviewTab';
 import { OnboardingModal } from '../components/dashboard/OnboardingModal';
-import { AlertCircle, ShoppingBag } from 'lucide-react';
+import { AlertCircle, ShoppingBag, Zap } from 'lucide-react';
 
 export const UserDashboard: React.FC<{ user: User, onAction: (msg: string, type?: any) => void, onGoToShop: () => void }> = ({ user, onAction, onGoToShop }) => {
   const { refreshUser } = useAuth();
@@ -32,18 +32,25 @@ export const UserDashboard: React.FC<{ user: User, onAction: (msg: string, type?
   // Effect for Onboarding logic
   useEffect(() => {
      if (user.isEmailVerified) {
-        refreshBasket(); // Keep this manual as it relies on complex context logic for now
+        // Basket is automatically refreshed by BasketContext when user is verified
         const isNewUser = localStorage.getItem('sml_show_welcome');
         if (isNewUser) {
             setShowOnboarding(true);
             localStorage.removeItem('sml_show_welcome');
         }
      }
-  }, [user.isEmailVerified, refreshBasket]);
+  }, [user.isEmailVerified]);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
     onGoToShop();
+  };
+
+  const getTimeGreeting = () => {
+      const hour = new Date().getHours();
+      if (hour < 12) return 'Good morning';
+      if (hour < 18) return 'Good afternoon';
+      return 'Good evening';
   };
 
   if (!user.isEmailVerified) {
@@ -71,7 +78,7 @@ export const UserDashboard: React.FC<{ user: User, onAction: (msg: string, type?
   const isLoading = loadingProducts || loadingSettings;
 
   return (
-    <div className="animate-in fade-in duration-700 min-h-screen">
+    <div className="min-h-screen pb-32">
       
       <OnboardingModal 
         isOpen={showOnboarding} 
@@ -81,29 +88,38 @@ export const UserDashboard: React.FC<{ user: User, onAction: (msg: string, type?
       />
 
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 px-1">
         <div>
-            <h1 className="text-3xl md:text-4xl font-heading font-extrabold text-stone-900 tracking-tight">
-                Hello, {user.fullName.split(' ')[0]}
+            <p className="text-stone-500 font-medium mb-1 flex items-center gap-2">
+                {getTimeGreeting()},
+            </p>
+            <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-stone-900 tracking-tight leading-none capitalize">
+                {user.fullName.split(' ')[0]}
             </h1>
-            <div className="mt-2">
-                {isLoading ? <Skeleton className="h-6 w-48 rounded-lg" /> : 
+            
+            <div className="mt-4 flex items-center gap-3">
+                {isLoading ? <Skeleton className="h-8 w-40 rounded-full" /> : 
                  (settings?.cycleName === 'No Active Cycle' || !settings?.isActive ? 
-                  <span className="text-orange-600 font-extrabold bg-orange-50 px-3 py-1 rounded-full text-xs border border-orange-100 flex items-center gap-2 w-fit">
-                    <div className="h-1.5 w-1.5 bg-orange-400 rounded-full"></div> Marketplace Closed
+                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-stone-100 text-stone-500 text-xs font-bold uppercase tracking-wider border border-stone-200">
+                    <div className="h-2 w-2 bg-stone-400 rounded-full"></div> Market Closed
                   </span> : 
-                  <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs border border-emerald-100 font-bold flex items-center gap-2 w-fit">
-                    <div className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse"></div> Active Cycle: <strong className="text-emerald-900">{settings?.cycleName}</strong>
+                  <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider border border-emerald-100/50 shadow-sm">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    Active: {settings?.cycleName}
                   </span>)}
             </div>
         </div>
+
         <div className="flex items-center gap-3">
             {!user.isSubscriber && (
-                <Button variant="ghost" size="sm" onClick={() => {}} className="hidden md:flex bg-brand-50 text-brand-700 hover:bg-brand-100 border border-brand-200 rounded-xl px-5">
-                    Upgrade Account
+                <Button variant="ghost" size="sm" onClick={() => {}} className="hidden md:flex bg-white text-stone-600 hover:text-brand-700 hover:bg-brand-50 border border-stone-200 hover:border-brand-200 rounded-xl px-5 h-12 font-bold shadow-sm">
+                    <Zap size={16} className="mr-2 text-amber-500 fill-amber-500" /> Upgrade
                 </Button>
             )}
-            <Button onClick={onGoToShop} className="shadow-2xl shadow-brand-900/20 rounded-2xl h-12 px-6">
+            <Button onClick={onGoToShop} className="shadow-xl shadow-brand-900/20 rounded-xl h-12 px-6 bg-stone-900 hover:bg-stone-800 text-white font-bold tracking-wide">
                 <ShoppingBag size={18} className="mr-2" /> Marketplace
             </Button>
         </div>
@@ -112,7 +128,7 @@ export const UserDashboard: React.FC<{ user: User, onAction: (msg: string, type?
       {isLoading ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
              <div className="lg:col-span-2 space-y-8">
-                <Skeleton className="h-[280px] rounded-[2rem] w-full" />
+                <Skeleton className="h-[280px] rounded-[2.5rem] w-full" />
                 <Skeleton className="h-[200px] rounded-[2rem] w-full" />
              </div>
              <div className="space-y-8">
@@ -121,7 +137,7 @@ export const UserDashboard: React.FC<{ user: User, onAction: (msg: string, type?
              </div>
           </div>
       ) : (
-          <div className="animate-in slide-in-from-bottom-4 duration-700 fill-mode-both">
+          <div>
             {basket?.id === 'virtual-closed' && (
                 <div className="bg-stone-100 border border-stone-200 p-6 rounded-[2rem] flex items-start gap-4 mb-8 shadow-sm">
                     <AlertCircle className="text-stone-500 shrink-0 mt-1" />

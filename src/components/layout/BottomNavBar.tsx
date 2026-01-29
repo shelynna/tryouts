@@ -45,7 +45,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = () => {
     };
 
     return (
-        <div className="lg:hidden fixed bottom-6 left-4 right-4 z-50">
+        <div className="lg:hidden fixed bottom-4 left-4 right-4 z-50">
             <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-stone-200/50 p-2 flex justify-between items-center h-[72px]">
                 {navItems.map(item => {
                     const active = isActive(item.path, item.exact);

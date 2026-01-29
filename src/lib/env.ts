@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 // Define the schema for your environment variables

@@ -8,11 +8,11 @@ import { ProductCard } from '../components/products/ProductCard';
 import { ProductDetailsModal } from '../components/products/ProductDetailsModal';
 import { FloatingCart } from '../components/products/FloatingCart';
 import { Select, Skeleton, Pagination, Button, useToast } from '../components/ui';
-import { Search, SlidersHorizontal, Lock, PackageSearch, LayoutDashboard } from 'lucide-react';
+import { Search, SlidersHorizontal, Info, PackageSearch, ShoppingBag } from 'lucide-react';
 import { FilterDrawer } from '../components/products/FilterDrawer';
 import { Logger } from '../lib/logger';
 import { PRODUCT_CATEGORIES, SORT_OPTIONS } from '../lib/constants';
-import { cn, formatCurrency } from '../lib/utils';
+import { cn } from '../lib/utils';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
 
@@ -35,7 +35,7 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
   
   // Combine 'All' with defined categories
   const categories = ['All', ...PRODUCT_CATEGORIES];
-  const { basket, addItem, itemCount, isBasketLocked, totalValue } = useBasket();
+  const { basket, addItem, itemCount, isBasketLocked, openCart } = useBasket();
 
   // Debounced fetch for search & category filter
   useEffect(() => {
@@ -95,6 +95,9 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
 
   const handleIncrement = async (p: Product) => {
       await addItem(p, 1);
+      if (isBasketLocked) {
+          showToast("Added to your Next Month's Basket", 'info');
+      }
   };
 
   const handleDecrement = async (p: Product) => {
@@ -112,12 +115,14 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
           </div>
           
           <div className="flex items-center gap-3">
-              <div className="hidden md:block text-right">
-                  <p className="text-[10px] font-bold uppercase text-stone-400 tracking-widest">Basket Total</p>
-                  <p className="text-lg font-bold text-brand-600 font-mono">{formatCurrency(totalValue)}</p>
-              </div>
-              <Button onClick={() => navigate('/dashboard')} variant="secondary" size="sm" className="gap-2 bg-stone-100 hover:bg-stone-200 text-stone-700">
-                  <LayoutDashboard size={16} /> <span className="hidden sm:inline">My Dashboard</span>
+              <Button onClick={openCart} variant="secondary" size="sm" className="gap-2 bg-stone-100 hover:bg-stone-200 text-stone-900 border-none shadow-sm relative">
+                  <ShoppingBag size={18} /> 
+                  <span className="font-bold text-sm">Cart</span>
+                  {itemCount > 0 && (
+                      <span className="bg-brand-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-1">
+                          {itemCount}
+                      </span>
+                  )}
               </Button>
           </div>
       </div>
@@ -195,9 +200,12 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
 
           {/* Global Notification: Locked State */}
           {isBasketLocked && (
-              <div className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-center gap-3 text-amber-800 text-sm font-bold shadow-sm animate-in slide-in-from-top-4 duration-500">
-                  <div className="bg-amber-100 p-2 rounded-lg"><Lock size={18} /></div>
-                  <span>The current cycle is locked. New items will be secured for your <strong>Next Month's</strong> basket.</span>
+              <div className="mb-8 bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3 text-blue-800 text-sm font-medium shadow-sm animate-in slide-in-from-top-4 duration-500">
+                  <div className="bg-blue-100 p-2 rounded-lg shrink-0"><Info size={18} /></div>
+                  <span className="leading-relaxed">
+                      <strong>Current cycle is locked for processing.</strong><br/> 
+                      Items you add now will go into your <span className="underline decoration-blue-400 decoration-2 font-bold">Next Month's Basket</span>.
+                  </span>
               </div>
           )}
 
@@ -260,7 +268,7 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
           )}
       </div>
 
-      <FloatingCart itemCount={itemCount} isLocked={isBasketLocked} />
+      <FloatingCart itemCount={itemCount} isLocked={false} />
 
       <FilterDrawer 
           isOpen={isFilterDrawerOpen}
@@ -279,7 +287,7 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
           currentQuantity={selectedProduct ? getItemCount(selectedProduct.id) : 0}
           onIncrement={() => selectedProduct && handleIncrement(selectedProduct)}
           onDecrement={() => selectedProduct && handleDecrement(selectedProduct)}
-          isLocked={false} 
+          isLocked={isBasketLocked} 
       />
     </div>
   );

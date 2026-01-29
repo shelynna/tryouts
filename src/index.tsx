@@ -12,9 +12,8 @@ if (typeof Node === 'function' && Node.prototype) {
   const originalRemoveChild = Node.prototype.removeChild;
   Node.prototype.removeChild = function <T extends Node>(child: T): T {
     if (child.parentNode !== this) {
-      if (console) {
-        console.warn('[SMM Auto-Fix] Cannot remove child node because it is not a child of this node. Ignoring extension interference.');
-      }
+      // Quietly handle extension interference without console spam
+      // console.debug('[SMM Auto-Fix] Preventing removeChild on detached node'); 
       return child;
     }
     return originalRemoveChild.apply(this, arguments as any) as T;
@@ -23,9 +22,8 @@ if (typeof Node === 'function' && Node.prototype) {
   const originalInsertBefore = Node.prototype.insertBefore;
   Node.prototype.insertBefore = function <T extends Node>(newNode: T, referenceNode: Node | null): T {
     if (referenceNode && referenceNode.parentNode !== this) {
-      if (console) {
-        console.warn('[SMM Auto-Fix] Cannot insert before a reference node from a different parent. Ignoring extension interference.');
-      }
+      // Quietly handle extension interference without console spam
+      // console.debug('[SMM Auto-Fix] Preventing insertBefore on detached node');
       return newNode;
     }
     return originalInsertBefore.apply(this, arguments as any) as T;

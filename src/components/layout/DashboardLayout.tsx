@@ -180,7 +180,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       </aside>
 
       <main className="flex-1 min-w-0 lg:pt-0 pb-36 lg:pb-0">
-        <div className="h-full px-4 py-8 md:px-8 md:py-10 max-w-7xl mx-auto">
+        <div className="h-full w-[90%] max-w-[1600px] mx-auto py-10 md:py-12">
            {children}
         </div>
       </main>

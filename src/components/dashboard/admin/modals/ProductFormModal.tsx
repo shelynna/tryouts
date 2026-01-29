@@ -59,13 +59,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({ isOpen, onCl
 
     const handleSubmit = async () => {
         if (!formData.name?.trim()) return notify("Product name is required", "error");
-        if (!formData.price || formData.price < 0) return notify("Price must be valid", "error");
+        if (!formData.price || Number(formData.price) < 0) return notify("Price must be valid", "error");
         
         const payload: Partial<Product> = {
             ...formData,
             name: formData.name?.trim(),
             category: formData.category?.trim(),
             size: formData.size?.trim(),
+            price: parseFloat(formData.price?.toString() || '0'), // Force number type
             description: formData.description?.trim(),
             image: (formData.image && formData.image.trim().length > 0) ? formData.image.trim() : ASSETS.PRODUCT_PLACEHOLDER,
             metadata: {
@@ -128,10 +129,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({ isOpen, onCl
                             </>
                         )}
                     </div>
+                    
                     {!formData.image && (
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"><Upload size={14}/></span>
-                            <input type="text" placeholder="Or paste image URL" value={formData.image || ''} onChange={(e) => handleInputChange('image', e.target.value)} className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-stone-200 bg-white focus:outline-none focus:border-brand-500 transition-all" />
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"><Upload size={14}/></span>
+                                <input type="text" placeholder="Paste image URL" value={formData.image || ''} onChange={(e) => handleInputChange('image', e.target.value)} className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-stone-200 bg-white focus:outline-none focus:border-brand-500 transition-all" />
+                            </div>
                         </div>
                     )}
                     <p className="text-[10px] text-stone-400 text-center">Supported formats: JPEG, JPG, PNG (Max 5MB)</p>

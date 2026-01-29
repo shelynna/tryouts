@@ -2,6 +2,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ShoppingBag, Wallet, Truck } from 'lucide-react';
+import { ASSETS } from '../../assets';
 
 const MotionDiv = motion.div as any;
 
@@ -11,19 +12,31 @@ export const HowItWorksSection = () => {
             icon: <ShoppingBag />,
             title: "Build Your Basket",
             description: "Shop from a curated list of student essentials at unbeatable wholesale prices. Add everything you need for the month to your basket.",
-            visual: <div className="bg-stone-200 h-full w-full rounded-2xl flex items-center justify-center p-8"><p className="text-stone-400 font-bold">[Marketplace UI Screenshot]</p></div>
+            visual: (
+                <div className="bg-stone-100 h-full w-full rounded-2xl flex items-center justify-center overflow-hidden border border-stone-200">
+                    <img src={ASSETS.LANDING_UI_MARKETPLACE} alt="Marketplace UI" className="w-full h-full object-cover object-top hover:scale-105 transition-transform duration-700" />
+                </div>
+            )
         },
         {
             icon: <Wallet />,
             title: "Pay Small-Small",
             description: "Contribute to your basket total anytime, anywhere via Mobile Money. No need for bulk cash—pay in installments that fit your cashflow.",
-            visual: <div className="bg-stone-200 h-full w-full rounded-2xl flex items-center justify-center p-8"><p className="text-stone-400 font-bold">[Payment Progress UI Screenshot]</p></div>
+            visual: (
+                <div className="bg-stone-100 h-full w-full rounded-2xl flex items-center justify-center overflow-hidden border border-stone-200">
+                    <img src={ASSETS.LANDING_UI_PAYMENT} alt="Payment UI" className="w-full h-full object-cover object-top hover:scale-105 transition-transform duration-700" />
+                </div>
+            )
         },
         {
             icon: <Truck />,
             title: "Collect On Campus",
             description: "Once your basket is fully paid before the cycle ends, you'll receive a unique pickup code. Collect your items from your designated hall point on delivery day.",
-            visual: <div className="bg-stone-200 h-full w-full rounded-2xl flex items-center justify-center p-8"><p className="text-stone-400 font-bold">[Delivery Code UI Screenshot]</p></div>
+            visual: (
+                <div className="bg-stone-100 h-full w-full rounded-2xl flex items-center justify-center overflow-hidden border border-stone-200">
+                    <img src={ASSETS.LANDING_UI_DELIVERY} alt="Delivery UI" className="w-full h-full object-cover object-top hover:scale-105 transition-transform duration-700" />
+                </div>
+            )
         }
     ];
 
@@ -50,7 +63,7 @@ export const HowItWorksSection = () => {
                             <h3 className="text-3xl font-heading font-bold text-stone-900">{step.title}</h3>
                             <p className="text-stone-600 text-lg leading-relaxed">{step.description}</p>
                         </div>
-                        <div className="aspect-square bg-white rounded-3xl shadow-soft">
+                        <div className="aspect-square bg-white rounded-3xl shadow-soft p-4">
                             {step.visual}
                         </div>
                     </MotionDiv>

@@ -7,6 +7,7 @@ export enum UserRole {
 
 export enum BasketStatus {
   OPEN = 'OPEN',
+  PARTIAL = 'PARTIAL',
   LOCKED = 'LOCKED',
   PAID = 'PAID',
   DELIVERED = 'DELIVERED',
@@ -39,7 +40,7 @@ export interface User {
   isEmailVerified: boolean; 
   referralCode?: string;
   referredBy?: string;
-  planIntent?: string; // New field to track what plan they chose during signup
+  planIntent?: string; 
 }
 
 export interface Product {
@@ -53,7 +54,6 @@ export interface Product {
   isActive: boolean;
   stockStatus: 'IN_STOCK' | 'SOLD_OUT';
   stockQuantity: number;
-  // UI expects 'image' string, DB has 'images' array. We map this in API.
   image?: string; 
   images?: string[]; 
   metadata?: Record<string, any>;
@@ -73,21 +73,23 @@ export interface Transaction {
   amount: number;
   type: 'PAYMENT' | 'SUBSCRIPTION' | 'REFUND';
   status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
+  metadata?: any; 
 }
 
 export interface Basket {
   id: string;
   userId: string;
-  cycleId?: string; // Link to specific cycle
-  month: string; // Virtual, for UI display (derived from cycle name)
+  cycleId?: string; 
+  month: string; 
   
   items: BasketItem[];
   
   subtotal: number;
   serviceFee: number;
-  discount: number; // Added for coupon logic
+  discount: number; 
   totalValue: number;
   amountPaid: number;
+  balance: number; // ADDED: Critical for tracking remaining amount
 
   status: BasketStatus;
   transactions: Transaction[];
@@ -95,12 +97,12 @@ export interface Basket {
   topUpRequested?: boolean;
   topUpApproved?: boolean;
   topUpAmount?: number;
+  topUpStatus?: 'NONE' | 'PENDING' | 'APPROVED' | 'DENIED';
+  topUpDenialReason?: string;
   
-  // Delivery
   deliveryCode?: string;
   pickupTimestamp?: string;
   
-  // Metadata for coupons
   couponCode?: string;
   metadata?: Record<string, any>;
 }
@@ -122,12 +124,10 @@ export interface Delivery {
 
 export interface SystemSettings {
   cycleName: string;
-  // Main Dates for UI (Legacy Mapped)
-  basketOpenDate?: string | null; // mapped to paymentStartDate
-  basketLockDate?: string | null; // mapped to lockDate
+  basketOpenDate?: string | null; 
+  basketLockDate?: string | null; 
   deliveryDate?: string | null;
   
-  // Granular Dates (Admin Freedom)
   paymentStartDate?: string | null;
   paymentEndDate?: string | null;
   lockDate?: string | null;
@@ -145,8 +145,8 @@ export interface SystemSettings {
     refundPolicy: string;
   };
   branding?: {
-    logo?: string;      // Main logo (colored/dark text for white bg)
-    logoWhite?: string; // White logo (for dark bg)
+    logo?: string;      
+    logoWhite?: string; 
   };
 }
 
@@ -163,7 +163,6 @@ export interface Cycle {
   isActive: boolean;
 }
 
-// Admin Types
 export interface ProcurementItem {
   productId: string;
   productName: string;
@@ -212,9 +211,8 @@ export interface AdminStats {
     totalOrders: number;
     avgOrderValue: number;
     
-    // Charts Data
     salesByCategory: { category: string; value: number; count: number }[];
-    revenueTrend: { date: string; amount: number }[]; // Last 7 days
+    revenueTrend: { date: string; amount: number }[]; 
     topProducts: { name: string; sold: number; revenue: number }[];
     statusBreakdown: Record<string, number>;
 }

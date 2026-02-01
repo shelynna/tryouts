@@ -1,4 +1,3 @@
-
 export * from './admin/statsService';
 export * from './admin/userService';
 export * from './admin/orderService';
@@ -38,4 +37,32 @@ export const getAssociateReport = async (): Promise<AssociateReport[]> => {
         month: r.month,
         activeUsers: r.active_users
     }));
+};
+
+// --- NEW ADMIN FEATURES ---
+
+export const exportUserContacts = async (cycleId?: string, onlyDebtors: boolean = false) => {
+    // Queries the admin_user_contacts view defined in schema
+    let query = supabase.from('admin_user_contacts').select('*');
+    // Basic filter implementation - View limitations apply
+    if (cycleId) {
+        query = query.eq('cycle', cycleId); // View uses cycle name not ID
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+};
+
+export const exportAllProfiles = async () => {
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (error) throw error;
+    return data;
+};
+
+export const getUserCycleHistory = async (userId: string) => {
+    const { data, error } = await supabase.rpc('admin_get_user_cycle_history', {
+        p_user_id: userId
+    });
+    if (error) throw error;
+    return data;
 };

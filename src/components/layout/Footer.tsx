@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ASSETS } from '../../assets';
 // @ts-ignore
 import { Link } from 'react-router-dom';
@@ -50,7 +50,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onLegal, logoUrl }) 
             <ul className="space-y-4 text-sm font-medium">
               <li><Link to="/about" className="text-stone-400 hover:text-brand-500 transition-colors flex items-center gap-2 hover:translate-x-1 duration-200">How it works</Link></li>
               <li><Link to="/shop" className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Marketplace</Link></li>
-              <li><Link to="/pricing" className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Pricing Cycle</Link></li>
               <li><Link to="/partner" className="text-stone-400 hover:text-brand-500 transition-colors hover:translate-x-1 duration-200">Partner with us</Link></li>
             </ul>
           </div>
@@ -76,3 +75,4 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onLegal, logoUrl }) 
     </footer>
   );
 };
+    

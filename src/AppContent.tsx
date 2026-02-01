@@ -22,10 +22,11 @@ import DOMPurify from 'dompurify';
 const UserDashboard = lazy(() => import('./pages/UserDashboard').then(module => ({ default: module.UserDashboard })));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
 const LandingView = lazy(() => import('./pages/Landing').then(module => ({ default: module.LandingView })));
-const ProductsPage = lazy(() => import('./pages/Products').then(module => ({ default: module.ProductsPage })));
+const CycleShop = lazy(() => import('./pages/CycleShop').then(module => ({ default: module.CycleShop })));
+const Plans = lazy(() => import('./pages/subscription/Plans').then(module => ({ default: module.Plans })));
+
 const HelpPage = lazy(() => import('./pages/Help').then(module => ({ default: module.HelpPage })));
 const AboutPage = lazy(() => import('./pages/About').then(module => ({ default: module.AboutPage })));
-const PricingCyclePage = lazy(() => import('./pages/PricingCycle').then(module => ({ default: module.PricingCyclePage })));
 const PartnerPage = lazy(() => import('./pages/Partner').then(module => ({ default: module.PartnerPage })));
 
 const Login = lazy(() => import('./pages/auth/Login').then(module => ({ default: module.Login })));
@@ -80,10 +81,8 @@ export const AppContent: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [viewingDoc, setViewingDoc] = useState<{ title: string, content: string } | null>(null);
 
-  // Initialize System Settings
   useEffect(() => { 
       let isMounted = true;
-      
       const initSystem = async () => {
           const safetyTimeout = setTimeout(() => {
               if (isMounted) setIsSystemLoading(false);
@@ -99,7 +98,6 @@ export const AppContent: React.FC = () => {
           } catch (e) {
              Logger.error("Critical: Failed to fetch SML settings", e);
              if (isMounted) {
-                 useDefaultSettings();
                  setIsSystemLoading(false);
                  clearTimeout(safetyTimeout);
              }
@@ -109,42 +107,17 @@ export const AppContent: React.FC = () => {
       return () => { isMounted = false; };
   }, []);
 
-  const useDefaultSettings = () => {
-      setSettings({
-        cycleName: 'SML Marketplace',
-        paymentStartDate: null,
-        paymentEndDate: null,
-        lockDate: null,
-        unlockDate: null,
-        bulkStartDate: null,
-        bulkEndDate: null,
-        deliveryDate: null,
-        basketOpenDate: null,
-        basketLockDate: null,
-        isActive: true,
-        basketServiceFeePercentage: 5,
-        topUpServiceFeePercentage: 5,
-        heroImages: [ASSETS.LANDING_HERO_BG]
-    });
-  };
-
-  // Logic: Show splash only if authentication state is determining OR system settings loading,
-  // BUT skip splash immediately if we are on the public Landing page and not authenticated yet (improves perceived load time).
   const isLandingPage = location.pathname === '/';
   
   useEffect(() => {
       if (isLandingPage && !isAuthLoading && !isAuthenticated) {
-          // If on landing page and not logged in, hide splash immediately
           setShowSplash(false);
       } else if (!isAuthLoading && !isSystemLoading) {
-          // Otherwise wait for everything to load
           setShowSplash(false);
       }
   }, [isLandingPage, isAuthLoading, isAuthenticated, isSystemLoading]);
 
   const isDataLoading = isAuthLoading || (isSystemLoading && !settings);
-
-  // Determine if we should show the standard public header/footer
   const showPublicChrome = !isAuthenticated;
 
   const handleNavigate = (path: string) => {
@@ -163,8 +136,6 @@ export const AppContent: React.FC = () => {
       else navigate(`/dashboard/${path.toLowerCase()}`);
   };
 
-  // Only render app content when splash is dismissed
-  // NOTE: If we are on landing page, we bypass this check early via useEffect logic above
   if (showSplash && (!isLandingPage || isAuthenticated)) {
       return (
           <SplashLoader 
@@ -202,7 +173,6 @@ export const AppContent: React.FC = () => {
             <AnimatePresence mode='wait'>
                 <Routes location={location} key={location.pathname}>
                     
-                    {/* Root: Logic to split Guest / User / Admin */}
                     <Route path="/" element={
                         isAuthenticated ? (
                             isAdmin ? <Navigate to="/admin" replace /> : <Navigate to="/shop" replace />
@@ -222,7 +192,7 @@ export const AppContent: React.FC = () => {
                         )
                     } />
                     
-                    {/* --- PROTECTED USER ROUTES (Wrapped in Dashboard Layout) --- */}
+                    {/* --- PROTECTED USER ROUTES --- */}
                     <Route path="/shop" element={
                         <ProtectedRoute>
                             <SEO title="Marketplace" />
@@ -233,7 +203,7 @@ export const AppContent: React.FC = () => {
                                 onNavigate={handleDashboardNavigate}
                                 onLogout={() => { logout(); navigate('/'); }}
                             >
-                                <ProductsPage onAction={(msg) => showToast(msg, 'success')} />
+                                <CycleShop />
                             </DashboardLayout>
                         </ProtectedRoute>
                     } />
@@ -287,6 +257,21 @@ export const AppContent: React.FC = () => {
                         </ProtectedRoute>
                     } />
 
+                    <Route path="/subscription/plans" element={
+                        <ProtectedRoute>
+                            <SEO title="Plans" />
+                            <DashboardLayout 
+                                user={user!} 
+                                logoUrl={logoWhiteUrl} 
+                                currentView="PLANS" 
+                                onNavigate={handleDashboardNavigate} 
+                                onLogout={() => { logout(); navigate('/'); }}
+                            >
+                                <Plans />
+                            </DashboardLayout>
+                        </ProtectedRoute>
+                    } />
+
                     {/* --- ADMIN ROUTE --- */}
                     <Route path="/admin" element={
                         <ProtectedRoute adminOnly>
@@ -298,7 +283,6 @@ export const AppContent: React.FC = () => {
                     {/* --- PUBLIC PAGES --- */}
                     <Route path="/help" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><div className="pt-24"><SEO title="Support" /><HelpPage onBack={() => navigate('/')} /></div></MotionDiv>} />
                     <Route path="/about" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><div className="pt-20"><SEO title="How it Works" /><AboutPage onBack={() => navigate('/')} onRegister={() => navigate('/register')} /></div></MotionDiv>} />
-                    <Route path="/pricing" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><SEO title="Pricing & Cycles" /><PricingCyclePage onBack={() => navigate('/')} /></MotionDiv>} />
                     <Route path="/partner" element={<MotionDiv initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><SEO title="Partner with SML" /><PartnerPage onBack={() => navigate('/')} /></MotionDiv>} />
 
                     <Route path="/login" element={<><SEO title="Login" /><Login onNavigate={handleNavigate} logoUrl={logoWhiteUrl} /></>} />

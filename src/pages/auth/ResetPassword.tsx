@@ -66,14 +66,6 @@ export const ResetPassword: React.FC<{ onNavigate: (view: string) => void, token
 
     setIsLoading(true);
     
-    // SAFETY: Hard timeout to kill spinner if network hangs for 20s
-    const safetyTimer = setTimeout(() => {
-        if (!success) {
-            setIsLoading(false);
-            showToast("Request timed out. Please check connection and try again.", 'error');
-        }
-    }, 20000);
-
     try {
       // 0. Verify session exists before attempting update
       const { data: { session } } = await supabase.auth.getSession();
@@ -82,34 +74,35 @@ export const ResetPassword: React.FC<{ onNavigate: (view: string) => void, token
       // 1. Update Password
       await API.resetPassword('', newPass);
 
-      // Success sequence
       setSuccess(true);
       
-      // 2. Force logout to ensure clean state for new login
+      // 2. Force logout after delay to ensure clean state
       setTimeout(async () => {
           await logout();
-          onNavigate('LOGIN');
-      }, 3000);
+      }, 2000);
 
     } catch (err: any) {
       console.error(err);
       showToast(err.message || "Reset failed. Try requesting a new link.", 'error');
-      setIsLoading(false);
     } finally {
-        clearTimeout(safetyTimer);
+        setIsLoading(false);
     }
   };
 
   if (success) {
       return (
          <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-stone-50">
-            <Card className="max-w-md w-full relative z-10 shadow-2xl border-none text-center py-10">
+            <Card className="max-w-md w-full relative z-10 shadow-2xl border-none text-center py-10 px-6">
                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
                    <CheckCircle size={40} />
                </div>
                <h2 className="text-2xl font-serif font-bold text-emerald-900 mb-2">Password Updated</h2>
-               <p className="text-stone-500 mb-6">Your password has been changed successfully.<br/>Redirecting to login...</p>
-               <Loader2 className="animate-spin mx-auto text-brand-500" />
+               <p className="text-stone-500 mb-8 leading-relaxed">
+                   Your password has been changed successfully. You can now log in with your new credentials.
+               </p>
+               <Button onClick={() => onNavigate('LOGIN')} fullWidth size="lg">
+                   Go to Login
+               </Button>
             </Card>
          </div>
       );

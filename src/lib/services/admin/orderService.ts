@@ -8,7 +8,7 @@ export const getAllBaskets = async (): Promise<AdminBasketEntry[]> => {
     const { data } = await supabase
       .from('baskets')
       .select(`
-          id, status, total_price, amount_paid, user_id,
+          id, status, total_price, amount_paid, user_id, delivery_batch,
           profiles (full_name),
           items:basket_items (id)
       `)
@@ -21,8 +21,21 @@ export const getAllBaskets = async (): Promise<AdminBasketEntry[]> => {
         status: b.status,
         totalValue: b.total_price || 0,
         amountPaid: b.amount_paid || 0,
-        itemCount: b.items?.length || 0
+        itemCount: b.items?.length || 0,
+        deliveryBatch: b.delivery_batch || 'A'
     }));
+};
+
+export const updateOrderBatch = async (basketId: string, batch: string) => {
+    const { error } = await supabase
+        .from('baskets')
+        .update({ delivery_batch: batch })
+        .eq('id', basketId);
+    
+    if (error) {
+        Logger.error("Failed to update order batch", error);
+        throw error;
+    }
 };
 
 export const getProcurementList = async (): Promise<ProcurementItem[]> => {

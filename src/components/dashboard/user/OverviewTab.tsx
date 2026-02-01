@@ -1,24 +1,18 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { User, SystemSettings, Product } from '../../../types';
-import { Button, Card } from '../../ui';
-import { formatCurrency, formatDate } from '../../../lib/utils';
+import React, { useState, useEffect } from 'react';
+import { User, SystemSettings, Product, Basket } from '../../../types';
+import { Button, Card, Skeleton } from '../../ui';
+import { formatCurrency } from '../../../lib/utils';
 import { useBasket } from '../../../context/BasketContext';
 import { API } from '../../../lib/api';
-import { env } from '../../../lib/env'; 
-import { Logger } from '../../../lib/logger';
-import { Crown, ArrowRight, Headphones, RefreshCw, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Crown, ArrowRight, Headphones, RefreshCw, AlertTriangle, Clock, ShoppingBag } from 'lucide-react';
 import { StatusCard } from './overview/StatusCard';
 import { QuickActions } from './overview/QuickActions';
 import { PaymentModal } from './modals/PaymentModal';
 import { UpgradeModal } from './modals/UpgradeModal';
 import { ASSETS } from '../../../assets';
-
-declare global {
-    interface Window {
-        PaystackPop: any;
-    }
-}
+import { useNavigate } from 'react-router-dom';
+import { usePaymentProcessor } from '../../../hooks/usePaymentProcessor';
 
 interface OverviewTabProps {
     user: User;
@@ -30,328 +24,244 @@ interface OverviewTabProps {
 }
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, products, onGoToShop, onAction, refreshUser }) => {
-    const { basket, totalValue, refreshBasket, updateLocalPayment } = useBasket();
-    const [isPaying, setIsPaying] = useState<'IDLE' | 'PROCESSING' | 'VERIFYING'>('IDLE');
+    const { basket, outstandingBaskets, refreshBasket } = useBasket();
+    const navigate = useNavigate();
+    const { processPayment, isProcessing } = usePaymentProcessor();
+    
     const [confirmModalOpen, setConfirmModalOpen] = useState(false);
     const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
     const [pendingAmount, setPendingAmount] = useState(0);
     const [paymentType, setPaymentType] = useState<'PAYMENT' | 'SUBSCRIPTION'>('PAYMENT');
+    const [targetBasketId, setTargetBasketId] = useState<string | undefined>(undefined);
 
     const totalPaid = basket?.amountPaid || 0;
+    const totalValue = basket?.totalValue || 0;
     const isEmpty = !basket || !basket.items || basket.items.length === 0;
-    const remaining = Math.max(0, totalValue - totalPaid);
-    const isFullyPaid = !isEmpty && remaining <= 0 && totalValue > 0;
-    const progress = (!isEmpty && totalValue > 0) ? Math.min((totalPaid / totalValue) * 100, 100) : 0;
+    
+    const isPaidStatus = basket?.status === 'PAID' || basket?.status === 'COLLECTED' || basket?.status === 'DELIVERED';
+    const remaining = isPaidStatus ? 0 : Math.max(0, totalValue - totalPaid);
+    
+    const progress = (!isEmpty && totalValue > 0) ? (isPaidStatus ? 100 : Math.min((totalPaid / totalValue) * 100, 100)) : 0;
+    
     const canRequestTopUp = progress >= 70 && progress < 100 && !basket?.topUpRequested && basket?.status === 'OPEN' && user.isSubscriber;
-    const isLocked = basket?.status !== 'OPEN';
 
-    // Fix: Only trigger auto-upgrade if explicit local intent exists (prevents loops/flickering)
     useEffect(() => {
         const checkIntent = () => {
             const localIntent = localStorage.getItem('sml_intent');
-            if (localIntent === 'SUBSCRIBE' && !user.isSubscriber) {
+            const hasSubscriberIntent = (localIntent === 'SUBSCRIBE') || (user.planIntent === 'SUBSCRIBER');
+            
+            if (hasSubscriberIntent && !user.isSubscriber) {
                 localStorage.removeItem('sml_intent');
                 setPendingAmount(15);
                 setPaymentType('SUBSCRIPTION');
-                setUpgradeModalOpen(true); // Open info modal first for context
+                setUpgradeModalOpen(true);
             }
         };
-        checkIntent();
-    }, [user.isSubscriber]);
+        const t = setTimeout(checkIntent, 500);
+        return () => clearTimeout(t);
+    }, [user.isSubscriber, user.planIntent]);
 
-    const initiatePayment = (amount: number, type: 'PAYMENT' | 'SUBSCRIPTION' = 'PAYMENT') => {
+    const initiatePayment = (amount: number, basketId?: string, type: 'PAYMENT' | 'SUBSCRIPTION' = 'PAYMENT') => {
         if (!amount || amount <= 0) {
             onAction("Please enter a valid amount", "error");
             return;
         }
         setPendingAmount(amount);
         setPaymentType(type);
+        setTargetBasketId(basketId || basket?.id);
         setConfirmModalOpen(true);
-    };
-
-    const generateReference = () => {
-        const text = Math.random().toString(36).substring(2, 12);
-        return `SML-${text}-${Date.now()}`;
     };
 
     const proceedWithPayment = async () => {
         setConfirmModalOpen(false);
         setUpgradeModalOpen(false);
-        setIsPaying('PROCESSING');
-        const amount = pendingAmount;
-        const type = paymentType;
-        const reference = generateReference();
+        
+        const pBasketId = targetBasketId || basket?.id;
 
-        try {
-            const publicKey = env.VITE_PAYSTACK_PUBLIC_KEY;
-            if (!publicKey) throw new Error("Payment System Error: Missing Public Key");
-
-            const loadPaystackScript = (): Promise<boolean> => {
-                return new Promise((resolve) => {
-                    if (window.PaystackPop) { resolve(true); return; }
-                    const script = document.createElement('script');
-                    script.src = 'https://js.paystack.co/v1/inline.js';
-                    script.async = true;
-                    script.onload = () => resolve(true);
-                    script.onerror = () => resolve(false);
-                    document.body.appendChild(script);
-                });
-            };
-
-            // Async logic separated from the immediate callback return
-            const processSuccess = async (response: any) => {
-                setIsPaying('VERIFYING');
-                const txRef = response.reference || reference;
-                const basketId = type === 'SUBSCRIPTION' ? 'subscription_upgrade' : basket!.id;
-                
-                try {
-                    await API.verifyPayment(txRef, basketId, amount);
-                    
-                    if (type === 'PAYMENT') {
-                        updateLocalPayment(amount);
-                        onAction(`Payment of ${formatCurrency(amount)} successful!`, "success");
-                    } else if (type === 'SUBSCRIPTION') {
-                        await refreshUser();
-                        onAction("Welcome to Subscriber Tier!", "success");
-                    }
-                    await refreshBasket();
-                } catch (verifyError: any) {
-                    onAction("Verification delayed: " + verifyError.message, "info");
-                    setTimeout(refreshBasket, 2000);
-                } finally {
-                    setIsPaying('IDLE');
-                }
-            };
-
-            // Synchronous wrappers for Paystack
-            const onPaystackSuccess = (response: any) => {
-                processSuccess(response);
-            };
-
-            const onPaystackClose = () => {
-                setIsPaying('IDLE');
-                onAction("Payment cancelled", "info");
-                
-                const dateStr = new Date().toLocaleString('en-GB', { 
-                    day: 'numeric', month: 'short', year: 'numeric', 
-                    hour: '2-digit', minute: '2-digit' 
-                });
-
-                const logMessage = `
-${formatCurrency(amount)}
-
-Transaction Details
-
-Reference ${reference}
-
-Status Cancelled
-
-Date ${dateStr}
-`.trim();
-                
-                Logger.info(logMessage, {
-                    status: 'CANCELLED',
-                    amount,
-                    reference,
-                    user: user.email
-                });
-            };
-
-            const scriptLoaded = await loadPaystackScript();
-            if (!scriptLoaded) throw new Error("Could not load payment gateway.");
-
-            const handler = window.PaystackPop.setup({
-                key: publicKey, 
-                email: user.email,
-                amount: amount * 100, // In kobo/pesewas
-                currency: 'GHS',
-                ref: reference,
-                metadata: { 
-                    custom_fields: [{ display_name: "Type", variable_name: "type", value: type }] 
-                },
-                callback: onPaystackSuccess,
-                onClose: onPaystackClose
-            });
-            
-            handler.openIframe();
-
-        } catch (e: any) {
-            setIsPaying('IDLE');
-            onAction("Payment Error: " + e.message, "error");
+        if (paymentType === 'PAYMENT' && !pBasketId) {
+            onAction("No active basket found to pay for.", "error");
+            return;
         }
-    };
 
-    const copyReferral = () => {
-        if (user.referralCode) {
-            navigator.clipboard.writeText(user.referralCode);
-            onAction("Referral code copied!", "success");
-        } else {
-            onAction("No referral code available", "error");
-        }
-    };
-
-    const handleRequestTopUp = async () => {
-        if (!basket) return;
-        try {
-            await API.requestTopUp(basket.id);
-            await refreshBasket();
-            onAction("Top-up requested!", "success");
-        } catch (e: any) {
-            onAction(e.message || "Failed to request top-up.", "error");
-        }
+        await processPayment(pendingAmount, user, pBasketId, paymentType, async () => {
+            if (paymentType === 'SUBSCRIPTION') await refreshUser();
+        });
     };
 
     return (
-        <div className="pb-20">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                <div className="lg:col-span-8 space-y-6">
-                    <StatusCard 
-                        basket={basket}
-                        isEmpty={isEmpty}
-                        isLocked={isLocked}
-                        isFullyPaid={isFullyPaid}
-                        remaining={remaining}
-                        totalPaid={totalPaid}
-                        totalValue={totalValue}
-                        progress={progress}
-                        onGoToShop={onGoToShop}
-                        onInitiatePayment={(amt) => initiatePayment(amt)}
-                        isPaying={isPaying === 'PROCESSING'}
-                    />
-
-                    {/* TOP-UP STATUS DISPLAY */}
-                    {basket?.topUpStatus && basket.topUpStatus !== 'NONE' && (
-                        <div className={`rounded-xl p-4 border flex flex-col md:flex-row gap-4 items-start ${
-                            basket.topUpStatus === 'PENDING' ? 'bg-amber-50 border-amber-100' :
-                            basket.topUpStatus === 'APPROVED' ? 'bg-emerald-50 border-emerald-100' :
-                            'bg-red-50 border-red-100'
-                        }`}>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                                basket.topUpStatus === 'PENDING' ? 'bg-amber-100 text-amber-600' :
-                                basket.topUpStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' :
-                                'bg-red-100 text-red-600'
-                            }`}>
-                                {basket.topUpStatus === 'PENDING' ? <Clock size={20} /> :
-                                 basket.topUpStatus === 'APPROVED' ? <CheckCircle size={20} /> :
-                                 <AlertTriangle size={20} />}
-                            </div>
-                            <div className="flex-1">
-                                <h4 className={`font-bold text-sm uppercase tracking-wide ${
-                                    basket.topUpStatus === 'PENDING' ? 'text-amber-800' :
-                                    basket.topUpStatus === 'APPROVED' ? 'text-emerald-800' :
-                                    'text-red-800'
-                                }`}>
-                                    Top-Up Request {basket.topUpStatus}
-                                </h4>
-                                <p className="text-xs text-stone-600 mt-1">
-                                    {basket.topUpStatus === 'PENDING' && "We are reviewing your request. This typically takes 24 hours."}
-                                    {basket.topUpStatus === 'APPROVED' && `Credit approved! ${formatCurrency(basket.topUpAmount)} has been covered. Repay next cycle.`}
-                                    {basket.topUpStatus === 'DENIED' && (
-                                        <>
-                                            Request declined. <br/>
-                                            <strong>Reason:</strong> {basket.topUpDenialReason || "Criteria not met."}
-                                        </>
-                                    )}
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {!isEmpty && (
-                        <Card className="hidden lg:block border border-stone-200">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-heading font-bold text-lg text-stone-900">
-                                    Current Basket ({basket?.month || settings.cycleName})
-                                </h3>
-                                <div className="flex gap-2">
-                                    <Button variant="ghost" size="sm" onClick={() => refreshBasket()} className="text-stone-500" title="Refresh Basket">
-                                        <RefreshCw size={14} />
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={onGoToShop} className="text-brand-600">
-                                        Manage Items <ArrowRight size={14} className="ml-1"/>
-                                    </Button>
-                                </div>
-                            </div>
-                            <div className="overflow-hidden rounded-xl border border-stone-100">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-stone-50 text-stone-500 font-bold uppercase text-[10px] tracking-widest">
-                                        <tr>
-                                            <th className="px-4 py-3">Item</th>
-                                            <th className="px-4 py-3 text-center">Qty</th>
-                                            <th className="px-4 py-3 text-right">Price</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-stone-100 bg-white">
-                                        {basket?.items.slice(0, 5).map((item, i) => (
-                                            <tr key={i} className="hover:bg-stone-50">
-                                                <td className="px-4 py-3 flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-lg bg-stone-100 border border-stone-200 overflow-hidden flex-shrink-0">
-                                                        <img src={item.product?.image || ASSETS.PRODUCT_PLACEHOLDER} className="w-full h-full object-cover" alt="" />
-                                                    </div>
-                                                    <span className="font-medium text-stone-700">{item.product?.name}</span>
-                                                </td>
-                                                <td className="px-4 py-3 text-center text-stone-500 font-mono">{item.quantity}</td>
-                                                <td className="px-4 py-3 text-right font-bold text-stone-900">{formatCurrency(item.totalPrice)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </Card>
-                    )}
+        <div className="pb-20 space-y-8">
+            
+            {/* 1. OUTSTANDING ALERTS */}
+            {outstandingBaskets && outstandingBaskets.length > 0 && (
+                <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center gap-2 px-1">
+                        <AlertTriangle className="text-orange-500" size={18} />
+                        <h3 className="font-heading font-bold text-stone-900 text-lg">Outstanding Baskets</h3>
+                    </div>
+                    {outstandingBaskets.map(b => (
+                        <StatusCard 
+                            key={b.id}
+                            userId={user.id}
+                            basket={b}
+                            isEmpty={false}
+                            isLocked={true}
+                            isFullyPaid={false}
+                            remaining={b.balance}
+                            totalPaid={b.amountPaid}
+                            totalValue={b.totalValue}
+                            progress={(b.amountPaid/b.totalValue)*100}
+                            onGoToShop={() => {}} 
+                            onInitiatePayment={(amt) => initiatePayment(amt, b.id)}
+                            isPaying={isProcessing && targetBasketId === b.id}
+                        />
+                    ))}
                 </div>
+            )}
 
-                <div className="lg:col-span-4 space-y-6">
-                    {!user.isSubscriber && (
-                        <div className="bg-gradient-to-br from-brand-900 to-stone-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-10 bg-brand-50 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
-                            <div className="relative z-10">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md">
-                                        <Crown size={20} className="text-brand-300" />
-                                    </div>
-                                    <span className="text-xs font-bold uppercase tracking-widest text-brand-300">Premium</span>
-                                </div>
-                                <h3 className="font-heading font-bold text-xl mb-2">Upgrade to Subscriber</h3>
-                                <p className="text-stone-300 text-sm mb-6 leading-loose">
-                                    Unlock <strong>Top-Up Credit</strong>, exclusive deals, and priority delivery for just GHS 15.
-                                </p>
-                                <Button 
-                                    size="md" 
-                                    fullWidth
-                                    onClick={() => { setPendingAmount(15); setPaymentType('SUBSCRIPTION'); setUpgradeModalOpen(true); }}
-                                    className="bg-brand-50 hover:bg-brand-400 text-white border-none shadow-lg shadow-brand-500/30"
-                                >
-                                    Upgrade Account
-                                </Button>
-                            </div>
-                        </div>
-                    )}
+            {/* 2. MAIN STATUS CARD */}
+            <div>
+                <div className="flex items-center justify-between px-1 mb-4">
+                    <h3 className="font-heading font-bold text-stone-900 text-lg flex items-center gap-2">
+                        <Clock className="text-brand-600" size={18} /> Current Cycle Status
+                    </h3>
+                </div>
+                <StatusCard 
+                    userId={user.id}
+                    basket={basket}
+                    isEmpty={isEmpty}
+                    isLocked={false}
+                    isFullyPaid={remaining <= 0 && !isEmpty}
+                    remaining={remaining}
+                    totalPaid={totalPaid}
+                    totalValue={totalValue}
+                    progress={progress}
+                    onGoToShop={onGoToShop}
+                    onInitiatePayment={(amt) => initiatePayment(amt, basket?.id)}
+                    isPaying={isProcessing && targetBasketId === basket?.id}
+                />
+            </div>
 
+            {/* 3. QUICK ACTIONS GRID */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Quick Actions */}
+                <div className="md:col-span-1">
                     <QuickActions 
                         onGoToShop={onGoToShop}
-                        onCopyReferral={copyReferral}
+                        onCopyReferral={() => {
+                            if (user.referralCode) {
+                                navigator.clipboard.writeText(user.referralCode);
+                                onAction("Referral code copied!", "success");
+                            }
+                        }}
                         onSupport={() => window.location.href = "mailto:support@smlghana.store"}
-                        onRequestTopUp={handleRequestTopUp}
+                        onRequestTopUp={async () => {
+                            if (!basket) return;
+                            try {
+                                await API.requestTopUp(basket.id);
+                                await refreshBasket();
+                                onAction("Top-up requested!", "success");
+                            } catch (e: any) {
+                                onAction(e.message, "error");
+                            }
+                        }}
                         canRequestTopUp={canRequestTopUp}
                         isSubscriber={user.isSubscriber}
                         showTopUpError={(msg) => onAction(msg, 'error')}
                     />
+                </div>
 
-                    <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between">
+                {/* Support / Help */}
+                <div className="md:col-span-1 space-y-4">
+                    {!user.isSubscriber && (
+                        <div 
+                            onClick={() => navigate('/subscription/plans')}
+                            className="bg-white border border-stone-100 rounded-2xl p-5 shadow-sm cursor-pointer group hover:border-brand-200 hover:shadow-md transition-all relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 right-0 p-8 bg-brand-50 rounded-full blur-xl -mr-6 -mt-6"></div>
+                            <div className="flex items-center gap-3 mb-3 relative z-10">
+                                <div className="bg-brand-100 p-2 rounded-lg text-brand-700">
+                                    <Crown size={20} />
+                                </div>
+                                <h4 className="font-bold text-stone-900 text-sm">Become a Subscriber</h4>
+                            </div>
+                            <p className="text-stone-500 text-xs mb-3 leading-relaxed relative z-10">
+                                Unlock Top-Ups, Deals, and Priority Delivery for GHS 15.
+                            </p>
+                            <span className="text-brand-600 text-xs font-bold flex items-center group-hover:translate-x-1 transition-transform relative z-10">
+                                View Plans <ArrowRight size={14} className="ml-1"/>
+                            </span>
+                        </div>
+                    )}
+
+                    <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-sm flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-600 flex items-center justify-center">
                                 <Headphones size={20} />
                             </div>
                             <div>
                                 <p className="font-bold text-stone-900 text-sm">Need Help?</p>
-                                <p className="text-xs text-stone-500">Contact Hall Rep</p>
+                                <p className="text-[10px] text-stone-500 uppercase tracking-wider">Hall Rep Contact</p>
                             </div>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => window.location.href = "tel:+233200000000"}>Call</Button>
+                        <Button variant="ghost" size="sm" onClick={() => window.location.href = "tel:+233550000000"}>Call</Button>
                     </div>
                 </div>
             </div>
+
+            {/* 4. CURRENT BASKET ITEMS */}
+            {!isEmpty && basket && (
+                <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-stone-100 flex justify-between items-center bg-stone-50/30">
+                        <h3 className="font-heading font-bold text-lg text-stone-900 flex items-center gap-2">
+                            <ShoppingBag size={18} className="text-stone-400"/> Basket Items
+                        </h3>
+                        <div className="flex gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => refreshBasket()} className="text-stone-400 hover:text-stone-600">
+                                <RefreshCw size={14} />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={onGoToShop} className="text-xs h-8">
+                                Manage
+                            </Button>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-stone-50 text-stone-500 font-bold uppercase text-[10px] tracking-widest border-b border-stone-100">
+                                <tr>
+                                    <th className="px-5 py-3">Product</th>
+                                    <th className="px-5 py-3 text-center">Qty</th>
+                                    <th className="px-5 py-3 text-right">Price</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100 bg-white">
+                                {basket.items.slice(0, 5).map((item, i) => (
+                                    <tr key={i} className="hover:bg-stone-50 transition-colors">
+                                        <td className="px-5 py-3 flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-stone-100 border border-stone-200 overflow-hidden flex-shrink-0">
+                                                <img src={item.product?.image || ASSETS.PRODUCT_PLACEHOLDER} className="w-full h-full object-cover" alt="" />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-stone-800 text-xs">{item.product?.name}</p>
+                                                <p className="text-[10px] text-stone-400 uppercase">{item.product?.size}</p>
+                                            </div>
+                                        </td>
+                                        <td className="px-5 py-3 text-center text-stone-600 font-mono text-xs">{item.quantity}</td>
+                                        <td className="px-5 py-3 text-right font-bold text-stone-900 text-xs">{formatCurrency(item.totalPrice)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {basket.items.length > 5 && (
+                        <div className="p-3 text-center border-t border-stone-100 bg-stone-50">
+                            <button onClick={onGoToShop} className="text-xs font-bold text-stone-500 hover:text-stone-800">
+                                + {basket.items.length - 5} more items
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
 
             <PaymentModal 
                 isOpen={confirmModalOpen}

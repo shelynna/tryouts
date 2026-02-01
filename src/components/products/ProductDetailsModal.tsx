@@ -12,8 +12,8 @@ interface ProductDetailsModalProps {
     isOpen: boolean;
     onClose: () => void;
     currentQuantity: number;
-    onIncrement: () => void;
-    onDecrement: () => void;
+    onIncrement: () => Promise<void>;
+    onDecrement: () => Promise<void>;
     isLocked: boolean;
 }
 
@@ -21,10 +21,29 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
     product, isOpen, onClose, currentQuantity, onIncrement, onDecrement, isLocked 
 }) => {
     const [imageError, setImageError] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     if (!product) return null;
 
     const isSoldOut = product.stockStatus === 'SOLD_OUT';
+
+    const handleAdd = async () => {
+        setIsLoading(true);
+        try {
+            await onIncrement();
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleRemove = async () => {
+        setIsLoading(true);
+        try {
+            await onDecrement();
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <Modal
@@ -129,9 +148,9 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                             {/* Quantity Selector */}
                             <div className="flex items-center bg-stone-100 rounded-xl h-12 md:h-14 shrink-0 px-2 border border-stone-200">
                                 <button 
-                                    onClick={onDecrement}
+                                    onClick={handleRemove}
                                     className="w-10 h-full flex items-center justify-center hover:text-stone-900 text-stone-500 transition-colors disabled:opacity-30 active:scale-95"
-                                    disabled={currentQuantity === 0}
+                                    disabled={currentQuantity === 0 || isLoading}
                                 >
                                     <Minus size={18} />
                                 </button>
@@ -139,9 +158,9 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                                     {currentQuantity}
                                 </span>
                                 <button 
-                                    onClick={onIncrement}
+                                    onClick={handleAdd}
                                     className="w-10 h-full flex items-center justify-center hover:text-stone-900 text-stone-500 transition-colors disabled:opacity-30 active:scale-95"
-                                    disabled={isSoldOut}
+                                    disabled={isSoldOut || isLoading}
                                 >
                                     <Plus size={18} />
                                 </button>
@@ -152,24 +171,16 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                                 fullWidth 
                                 size="lg"
                                 disabled={isSoldOut}
-                                onClick={onIncrement}
+                                onClick={handleAdd}
+                                loading={isLoading}
                                 className={cn(
                                     "h-12 md:h-14 text-base font-bold shadow-xl shadow-brand-900/20 rounded-xl", 
                                     isSoldOut ? "bg-stone-300 text-white border-none shadow-none cursor-not-allowed" : "bg-brand-900 text-white hover:bg-brand-800"
                                 )}
                             >
-                                {isSoldOut ? 'Sold Out' : (
-                                    currentQuantity === 0 
-                                        ? (isLocked ? 'Add to Next Cycle' : 'Add to Basket') 
-                                        : (isLocked ? `Update Next Cycle (${currentQuantity})` : `Update Basket (${currentQuantity})`)
-                                )}
+                                {isSoldOut ? 'Sold Out' : (currentQuantity === 0 ? 'Add to Cart' : 'Update Cart')}
                             </Button>
                         </div>
-                        {isLocked && !isSoldOut && (
-                            <p className="text-[10px] text-center text-brand-600 font-medium mt-2 bg-brand-50 p-1 rounded-lg">
-                                Current cycle is locked. Item will be added to your <strong>New Basket</strong>.
-                            </p>
-                        )}
                     </div>
                 </div>
             </div>

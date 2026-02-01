@@ -4,6 +4,7 @@ import { User, UserRole, PickupPoint } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { API } from '../lib/api';
 import { Logger } from '../lib/logger';
+import { jwtDecode } from "jwt-decode";
 
 interface AuthContextType {
   user: User | undefined;
@@ -27,10 +28,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Ref to track current user ID without triggering re-renders in effects
   const profileIdRef = useRef<string | null>(null);
   
+  // Helper to extract Role from JWT Token safely
+  const getRoleFromToken = (token: string): UserRole => {
+      try {
+          const decoded: any = jwtDecode(token);
+          // Supabase stores user_metadata in the JWT payload
+          return (decoded.user_metadata?.role as UserRole) || UserRole.USER;
+      } catch (e) {
+          return UserRole.USER;
+      }
+  };
+
   // 1. Helper to construct a User object from Session Metadata (Fast Fallback)
   const getUserFromSession = (currentSession: any): User | null => {
       if (!currentSession?.user) return null;
       const meta = currentSession.user.user_metadata || {};
+      const tokenRole = getRoleFromToken(currentSession.access_token);
       
       return {
           id: currentSession.user.id,
@@ -39,7 +52,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           fullName: meta.full_name || 'SML User',
           phoneNumber: meta.phone || '',
           pickupPoint: (meta.pickup_point as PickupPoint) || PickupPoint.HALL_7,
-          role: UserRole.USER, // Default until DB loads
+          // Use role from JWT for immediate feedback
+          role: tokenRole, 
           isSubscriber: false,
           creditBalance: 0,
           isBlocked: false,
@@ -51,7 +65,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 2. Load Profile from DB (Async Enhancement)
   const fetchProfile = useCallback(async (uid: string, currentSession: any) => {
       try {
-          const dbUser = await API.getMe(uid);
+          // Pass session user to avoid extra network call to auth.getUser()
+          const dbUser = await API.getMe(uid, currentSession?.user);
+          // We do not override DB role with Token role anymore.
+          // The DB 'profiles' table is the source of truth for RLS checks in this app.
+          
           if (dbUser) {
               setProfile(dbUser);
               profileIdRef.current = dbUser.id;
@@ -81,13 +99,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (mounted) {
             if (initialSession) {
                 setSession(initialSession);
-                // Set immediate fallback so UI shows "Logged In" instantly
+                // Set immediate fallback so UI shows "Logged In" instantly with JWT Role
                 const initialUser = getUserFromSession(initialSession);
                 setProfile(initialUser);
                 if (initialUser) profileIdRef.current = initialUser.id;
                 
-                // CRITICAL FIX: Await full profile fetch before releasing loading state
-                // This ensures we have the correct Role (ADMIN/USER) before routing logic runs
+                // Fetch full profile but don't block basic auth state
                 await fetchProfile(initialSession.user.id, initialSession);
             }
         }
@@ -107,21 +124,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (newSession) {
             setSession(newSession);
             
-            // CRITICAL FIX: Only reset profile if the user ID has changed.
-            // Using ref to check current ID prevents stale closure issues.
             const currentId = profileIdRef.current;
             const newId = newSession.user.id;
             const isDifferentUser = currentId !== newId;
 
             if (isDifferentUser) {
+                // Reset profile immediately to new user session data
                 const sessionUser = getUserFromSession(newSession);
                 setProfile(sessionUser);
                 profileIdRef.current = newId;
             }
             
             // Always try to fetch latest data to ensure sync
-            // Note: We don't await here because this happens after initial load
-            fetchProfile(newSession.user.id, newSession);
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+                 fetchProfile(newSession.user.id, newSession);
+            }
             
             if (isLoading) setIsLoading(false);
         } else {
@@ -163,13 +180,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const computedUser = useMemo(() => profile, [profile]);
+  const isAuthenticated = !!session;
 
   return (
     <AuthContext.Provider value={{
       user: computedUser || undefined, 
       session, 
-      isAuthenticated: !!session,
-      isLoading,
+      isAuthenticated,
+      isLoading: isLoading,
       isAdmin: computedUser?.role === UserRole.ADMIN,
       authStatus: authMsg,
       logout, 

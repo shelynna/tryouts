@@ -162,16 +162,26 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, logoUrl }) => {
                     <p className="text-stone-600">
                         Your account isn't active yet. Please click the verification link in your email.
                     </p>
-                    <div className="bg-stone-50 p-4 rounded-xl shadow-sm">
+                    <div className="bg-stone-50 p-4 rounded-xl shadow-sm space-y-3">
                         <Button 
                             type="button" 
                             variant="secondary" 
                             size="md" 
                             onClick={handleResendConfirmation} 
                             loading={isResending}
+                            disabled={isResending}
                             className="w-full"
                         >
                            <RefreshCw size={14} className="mr-2" /> Resend Confirmation
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onNavigate('FORGOT-PASSWORD')}
+                            className="w-full text-xs text-stone-500 hover:text-stone-700"
+                        >
+                            Reset Password instead
                         </Button>
                     </div>
                     <Button variant="ghost" onClick={() => setNeedsConfirmation(false)}>Back to Login</Button>
@@ -237,8 +247,7 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, logoUrl }) => {
                         
                         <Button fullWidth size="xl" loading={isLoading} disabled={isLoading} className="shadow-xl shadow-brand-900/20 group">
                             {isLoading ? (
-                                <span className="flex items-center gap-2 animate-pulse">
-                                    <Loader2 className="animate-spin" size={18} />
+                                <span className="flex items-center gap-2">
                                     {method === 'MAGIC_LINK' ? "Sending Link..." : "Signing in..."}
                                 </span>
                             ) : (

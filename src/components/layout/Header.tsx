@@ -24,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView, logoUrl })
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -40,7 +41,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView, logoUrl })
         : [
             { id: 'SHOP', label: 'Marketplace', path: '/shop' },
             { id: 'DASHBOARD', label: 'My Dashboard', path: '/dashboard' },
-            { id: 'PRICING', label: 'Pricing Cycle', path: '/pricing' },
             { id: 'PARTNER', label: 'Partner with us', path: '/partner' },
           ]
       )
@@ -48,7 +48,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView, logoUrl })
         { id: 'LANDING', label: 'Home', path: '/' },
         { id: 'SHOP', label: 'Shop', path: '/shop' },
         { id: 'ABOUT', label: 'How SML Works', path: '/about' },
-        { id: 'PRICING', label: 'Pricing Cycle', path: '/pricing' },
         { id: 'PARTNER', label: 'Partner with us', path: '/partner' },
       ];
 
@@ -61,6 +60,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView, logoUrl })
       if (path === '/' && location.pathname !== '/') return false;
       return location.pathname.startsWith(path);
   };
+
+  // Safe logo source with fallback
+  const safeLogo = imgError ? ASSETS.LOGO : (logoUrl || ASSETS.LOGO);
 
   return (
     <>
@@ -95,7 +97,12 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView, logoUrl })
             to={isAuthenticated ? (isAdmin ? '/admin' : '/shop') : '/'}
             className="flex items-center cursor-pointer gap-2 z-50 shrink-0" 
           >
-            <img src={logoUrl || ASSETS.LOGO} alt="SML" className="h-10 w-auto object-contain" />
+            <img 
+                src={safeLogo} 
+                alt="SML" 
+                className="h-10 w-auto object-contain"
+                onError={() => setImgError(true)} 
+            />
           </Link>
 
           <nav className="hidden md:flex items-center gap-8 absolute left-1/2 transform -translate-x-1/2">
@@ -143,10 +150,14 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView, logoUrl })
                         className={cn("flex items-center gap-2 pl-2 transition-transform active:scale-95", isActive('/dashboard') && "scale-105")}
                     >
                         <div className={cn(
-                            "w-8 h-8 rounded-full border flex items-center justify-center transition-colors",
+                            "w-8 h-8 rounded-full border flex items-center justify-center transition-colors overflow-hidden",
                             isActive('/dashboard') ? "bg-brand-900 text-white border-brand-900" : "bg-stone-100 border-stone-200 text-stone-600 hover:bg-stone-200"
                         )}>
-                            {isActive('/dashboard') ? <i className='bx bxs-dashboard text-base'></i> : <i className='bx bx-user text-base'></i>}
+                            {user?.avatarUrl ? (
+                                <img src={user.avatarUrl} alt="User" className="w-full h-full object-cover" />
+                            ) : (
+                                isActive('/dashboard') ? <i className='bx bxs-dashboard text-base'></i> : <i className='bx bx-user text-base'></i>
+                            )}
                         </div>
                     </Link>
                  </div>
@@ -201,7 +212,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView, logoUrl })
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
                         "block w-full text-left text-3xl font-heading font-medium transition-colors",
-                        isActive(link.path) ? "text-brand-600" : "text-stone-900 hover:text-brand-500"
+                        isActive(link.path) ? "text-brand-600" : "text-stone-900 hover:text-brand-50"
                       )}
                     >
                       {link.label}
@@ -241,3 +252,4 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView, logoUrl })
     </>
   );
 };
+    

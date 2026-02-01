@@ -92,6 +92,16 @@ const NavContent: React.FC<NavContentProps> = ({
                             >
                                 <i className='bx bx-user text-lg'></i> Update Info
                             </Link>
+                            
+                            {/* Updated Link to go to Settings -> Subscription Tab */}
+                            <Link 
+                                to="/dashboard/settings?tab=subscription"
+                                onClick={() => setIsMenuOpen(false)}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-stone-300 hover:text-white hover:bg-white/5 transition-colors text-left"
+                            >
+                                <i className='bx bx-crown text-lg'></i> My Subscription
+                            </Link>
+
                             <div className="h-px bg-white/10 mx-2" />
                             <button 
                                 onClick={onLogoutClick}
@@ -110,8 +120,12 @@ const NavContent: React.FC<NavContentProps> = ({
                         isMenuOpen && "bg-white/10 ring-1 ring-white/20"
                     )}
                 >
-                    <div className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center text-white font-heading font-bold shadow-lg shrink-0">
-                        {user.fullName ? user.fullName.charAt(0) : 'U'}
+                    <div className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center text-white font-heading font-bold shadow-lg shrink-0 overflow-hidden">
+                        {user.avatarUrl ? (
+                            <img src={user.avatarUrl} alt="User" className="w-full h-full object-cover" />
+                        ) : (
+                            user.fullName ? user.fullName.charAt(0) : 'U'
+                        )}
                     </div>
                     <div className="flex-1 overflow-hidden">
                         <p className="text-sm font-bold text-white truncate">{user.fullName || 'User'}</p>

@@ -2,12 +2,14 @@
 import React from 'react';
 // @ts-ignore
 import { BrowserRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/query-core';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
 import { BasketProvider } from './context/BasketContext';
 import { ToastProvider } from './components/ui';
 import { AppContent } from './AppContent';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Initialize React Query Client
 const queryClient = new QueryClient({
@@ -25,13 +27,15 @@ const App: React.FC = () => {
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <AuthProvider>
-            <ToastProvider>
-              <BasketProvider>
-                 <AppContent />
-              </BasketProvider>
-            </ToastProvider>
-          </AuthProvider>
+          <ErrorBoundary>
+            <AuthProvider>
+              <ToastProvider>
+                <BasketProvider>
+                   <AppContent />
+                </BasketProvider>
+              </ToastProvider>
+            </AuthProvider>
+          </ErrorBoundary>
         </BrowserRouter>
       </QueryClientProvider>
     </HelmetProvider>

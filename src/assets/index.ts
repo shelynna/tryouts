@@ -19,7 +19,7 @@ export const ASSETS = {
   AVATAR_PLACEHOLDER: "/assets/images/ui/avatar_placeholder.png",
 
   // UI Screenshots for Landing Page (How It Works)
-  LANDING_UI_MARKETPLACE: "/assets/images/ui/marketplace_shot.jpg",
-  LANDING_UI_PAYMENT: "/assets/images/ui/payment_shot.jpg",
-  LANDING_UI_DELIVERY: "/assets/images/ui/delivery_shot.jpg",
+  LANDING_UI_MARKETPLACE: "/assets/images/ui/marketplace_shot.png",
+  LANDING_UI_PAYMENT: "/assets/images/ui/payment_shot.png",
+  LANDING_UI_DELIVERY: "/assets/images/ui/delivery_shot.png",
 };

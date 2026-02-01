@@ -11,7 +11,6 @@ import { DeliveriesTab } from '../components/dashboard/admin/DeliveriesTab';
 import { PickupTab } from '../components/dashboard/admin/PickupTab';
 import { TopUpsTab } from '../components/dashboard/admin/TopUpsTab';
 import { ProcurementTab } from '../components/dashboard/admin/ProcurementTab';
-import { CycleTab } from '../components/dashboard/admin/CycleTab';
 import { ContentTab } from '../components/dashboard/admin/ContentTab';
 import { SystemLogsTab } from '../components/dashboard/admin/SystemLogsTab';
 import { AssociatesTab } from '../components/dashboard/admin/AssociatesTab';
@@ -33,7 +32,6 @@ const TABS = [
   { id: 'PROCUREMENT', label: 'Procurement', iconClass: 'bx bx-grid-alt' },
   { id: 'DELIVERIES', label: 'Dispatch', iconClass: 'bx bxs-truck' },
   { id: 'PICKUP', label: 'Quick Scan', iconClass: 'bx bx-qr' },
-  { id: 'CYCLE', label: 'Cycle Config', iconClass: 'bx bx-cog' },
   { id: 'CONTENT', label: 'Content', iconClass: 'bx bx-file' },
   { id: 'LOGS', label: 'System Logs', iconClass: 'bx bx-pulse' },
 ];
@@ -94,7 +92,6 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
             case 'PICKUP': return <PickupTab />;
             case 'TOPUPS': return <TopUpsTab topUps={topUps} refreshAdminData={refreshAdminData} notify={onAction} />;
             case 'PROCUREMENT': return <ProcurementTab procurementList={procurementList} />;
-            case 'CYCLE': return <CycleTab settings={settings} onSave={async (s) => { try { await API.saveSettings(s); refreshAdminData(); onAction("Settings saved", "success"); } catch(e: any) { onAction(e.message, "error"); } }} />;
             case 'CONTENT': return <ContentTab settings={settings} onSave={async (s) => { try { await API.saveSettings(s); refreshAdminData(); onAction("Content saved", "success"); } catch(e: any) { onAction(e.message, "error"); } }} />;
             case 'LOGS': return <SystemLogsTab />;
             default: return <OverviewTab stats={stats} />;
@@ -268,3 +265,4 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
         </div>
     );
 };
+    

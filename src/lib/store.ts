@@ -1,11 +1,14 @@
 
 import { create } from 'zustand';
-import { Basket, BasketItem, Cycle, BasketStatus, Product } from '../types';
+import { Basket, BasketItem, Cycle, Product, BasketStatus } from '../types';
 import { API } from './api';
 import { supabase } from './supabaseClient';
+import { getCurrentBasket, getOutstandingBaskets, upsertBasketItem } from './services/basketService';
 
 interface BasketState {
-  basket: Basket | undefined;
+  basket: Basket | undefined; // The 'Writable' basket
+  outstandingBaskets: Basket[]; // 'Payable' baskets
+  
   itemCount: number;
   subtotal: number;
   serviceFee: number;
@@ -16,8 +19,8 @@ interface BasketState {
   feePercentage: number;
   
   // Computed
-  isBasketLocked: boolean;
-  isPaymentEnabled: boolean;
+  isBasketLocked: boolean; // True if STRICTLY locked (cannot add). False if Open or Draft.
+  isPaymentEnabled: boolean; // True if Open. False if Draft/Locked.
 
   // Realtime Subscription
   subscription: any | null;
@@ -25,35 +28,32 @@ interface BasketState {
   // Actions
   openCart: () => void;
   closeCart: () => void;
-  setFeePercentage: (fee: number) => void;
   refreshBasket: () => Promise<void>;
   addItem: (product: Product, quantity?: number) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
   updateItem: (productId: string, quantity: number) => Promise<void>;
   applyCoupon: (code: string) => Promise<number>;
   removeCoupon: () => Promise<void>;
-  updateLocalPayment: (amount: number) => void;
+  updateLocalPayment: (amount: number, basketId?: string) => void;
   initialize: () => Promise<void>;
   subscribe: () => void;
   unsubscribe: () => void;
 }
 
-// Helper calculation
 const calculateTotals = (items: BasketItem[], discountAmount: number = 0, feePercentage: number = 0.05) => {
-    const localSub = items.reduce((acc, item) => acc + (item.unitPrice * item.quantity), 0);
+    const localSub = items.reduce((acc, item) => {
+        // Exclude inactive products from total calculation
+        if (item.product && item.product.isActive === false) return acc;
+        return acc + (item.unitPrice * item.quantity);
+    }, 0);
     const localFee = localSub * feePercentage; 
     const localTot = Math.max(0, localSub + localFee - discountAmount);
     return { localSub, localFee, localTot };
 };
 
-const safeDate = (dateString: string | null | undefined): Date | null => {
-    if (!dateString) return null;
-    const d = new Date(dateString);
-    return isNaN(d.getTime()) ? null : d;
-};
-
 export const useBasketStore = create<BasketState>((set, get) => ({
   basket: undefined,
+  outstandingBaskets: [],
   itemCount: 0,
   subtotal: 0,
   serviceFee: 0,
@@ -68,7 +68,6 @@ export const useBasketStore = create<BasketState>((set, get) => ({
 
   openCart: () => set({ isCartOpen: true }),
   closeCart: () => set({ isCartOpen: false }),
-  setFeePercentage: (fee) => set({ feePercentage: fee }),
 
   initialize: async () => {
       try {
@@ -78,26 +77,7 @@ export const useBasketStore = create<BasketState>((set, get) => ({
               activeCycle: c
           });
           
-          // Compute flags
-          const now = new Date();
-          let isLocked = false;
-          let isPaying = false;
-
-          if (c) {
-              const start = safeDate(c.paymentStartDate);
-              const end = safeDate(c.paymentEndDate);
-              const lockDate = safeDate(c.lockDate);
-              const unlockUntil = safeDate(c.unlockDate);
-
-              if (start && end && now >= start && now <= end) isPaying = true;
-              if (lockDate && now > lockDate) isLocked = true;
-              if (unlockUntil && now < unlockUntil) isLocked = false;
-          }
-          
-          set({ isBasketLocked: isLocked, isPaymentEnabled: isPaying });
           await get().refreshBasket();
-          
-          // Start listening for updates
           get().subscribe();
       } catch (e) {
           console.warn("Basket store init failed", e);
@@ -105,28 +85,14 @@ export const useBasketStore = create<BasketState>((set, get) => ({
   },
 
   subscribe: () => {
-      const { subscription } = get();
-      if (subscription) return; 
-
-      // Realtime listener for 'baskets' table
+      if (get().subscription) return; 
       const channel = supabase.channel('basket-realtime')
           .on(
               'postgres_changes',
-              { 
-                  event: 'UPDATE', 
-                  schema: 'public', 
-                  table: 'baskets'
-              },
-              (payload) => {
-                  const currentBasket = get().basket;
-                  // Only refresh if the update belongs to the current user's basket
-                  if (currentBasket && payload.new.id === currentBasket.id) {
-                      get().refreshBasket();
-                  }
-              }
+              { event: 'UPDATE', schema: 'public', table: 'baskets' },
+              () => get().refreshBasket()
           )
           .subscribe();
-
       set({ subscription: channel });
   },
 
@@ -141,35 +107,42 @@ export const useBasketStore = create<BasketState>((set, get) => ({
   refreshBasket: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-          set({ basket: undefined, itemCount: 0, subtotal: 0, totalValue: 0 });
+          set({ basket: undefined, outstandingBaskets: [], itemCount: 0, totalValue: 0 });
           return;
       }
 
       try {
-          const b = await API.getBasket();
-          
-          if (b === undefined) return;
+          // Fetch both concurrently
+          const [current, outstanding] = await Promise.all([
+              getCurrentBasket(),
+              getOutstandingBaskets()
+          ]);
 
-          if (b?.id === 'virtual-closed') {
-              set({ basket: b, itemCount: 0, subtotal: 0, isBasketLocked: true });
-              return;
-          }
-
-          const items = b?.items || [];
+          // Calc totals for current basket
+          const items = current?.items || [];
           const count = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
-          const currentDiscount = b?.discount || 0;
-          
-          const backendTotal = b?.totalValue;
-          const { localSub, localFee, localTot } = calculateTotals(items, currentDiscount, get().feePercentage);
+          const { localSub, localFee, localTot } = calculateTotals(items, current?.discount || 0, get().feePercentage);
 
+          // Update current basket object with recalculated totals to exclude inactive items
+          const updatedBasket = current ? {
+              ...current,
+              subtotal: localSub,
+              serviceFee: localFee,
+              totalValue: localTot,
+              balance: Math.max(0, localTot - current.amountPaid)
+          } : undefined;
+
+          // Force normal e-commerce behavior: Always unlocked, always payable if items exist
           set({
-              basket: b,
+              basket: updatedBasket,
+              outstandingBaskets: outstanding,
               itemCount: count,
-              subtotal: b?.subtotal !== undefined ? b.subtotal : localSub,
-              serviceFee: b?.serviceFee !== undefined ? b.serviceFee : localFee,
-              discount: currentDiscount,
-              totalValue: backendTotal !== undefined ? backendTotal : localTot,
-              isBasketLocked: b?.status !== 'OPEN' ? true : get().isBasketLocked
+              subtotal: localSub,
+              serviceFee: localFee,
+              discount: current ? current.discount : 0,
+              totalValue: localTot,
+              isBasketLocked: false, 
+              isPaymentEnabled: true
           });
       } catch (e) {
           console.error("Failed to refresh basket", e);
@@ -177,100 +150,101 @@ export const useBasketStore = create<BasketState>((set, get) => ({
   },
 
   addItem: async (product, quantity = 1) => {
-      const { basket: prevBasket, itemCount: prevCount, subtotal: prevSub, totalValue: prevTotal } = get();
-      const fee = get().feePercentage;
-      const { data: { user } } = await supabase.auth.getUser();
+      const { basket, feePercentage } = get();
       
-      if (!user) return; 
-
-      // Snapshot for rollback
-      const previousState = { basket: prevBasket, itemCount: prevCount, subtotal: prevSub, totalValue: prevTotal };
-
-      let newItems: BasketItem[] = [];
-      let currentBasket: Basket;
-
-      // Handle empty/new basket state optimistically
-      if (prevBasket) {
-          currentBasket = prevBasket;
-      } else {
-          currentBasket = {
-              id: 'temp-optimistic',
-              userId: user.id,
-              month: get().activeCycle?.name || 'Current Cycle',
-              status: BasketStatus.OPEN,
-              items: [],
-              subtotal: 0, serviceFee: 0, discount: 0, totalValue: 0, amountPaid: 0, balance: 0,
-              transactions: []
-          };
-      }
-
-      newItems = [...currentBasket.items];
-      const idx = newItems.findIndex(i => i.productId === product.id);
+      // OPTIMISTIC UPDATE START
+      const currentItems = basket?.items ? [...basket.items] : [];
+      const existingItemIndex = currentItems.findIndex((i: any) => i.productId === product.id);
       
-      let targetQty = quantity;
-
-      if (idx > -1) {
-          const item = { ...newItems[idx] };
-          item.quantity += quantity;
-          targetQty = item.quantity;
-          item.totalPrice = item.quantity * item.unitPrice;
-          
-          if (item.quantity <= 0) newItems.splice(idx, 1);
-          else newItems[idx] = item;
+      let newItems = [...currentItems];
+      if (existingItemIndex > -1) {
+          // Update existing item
+          const item = newItems[existingItemIndex];
+          if (quantity <= 0) {
+              newItems.splice(existingItemIndex, 1);
+          } else {
+              newItems[existingItemIndex] = {
+                  ...item,
+                  quantity: quantity,
+                  totalPrice: quantity * item.unitPrice
+              };
+          }
       } else if (quantity > 0) {
+          // Add new item
           newItems.push({
               productId: product.id,
-              quantity,
+              quantity: quantity,
               unitPrice: product.price,
-              totalPrice: product.price * quantity,
+              totalPrice: quantity * product.price,
               product: product
           });
       }
 
-      // Optimistic update
-      const count = newItems.reduce((acc, i) => acc + i.quantity, 0);
-      const { localSub, localFee, localTot } = calculateTotals(newItems, currentBasket.discount, fee);
-      const newBalance = Math.max(0, localTot - currentBasket.amountPaid);
+      const { localSub, localFee, localTot } = calculateTotals(newItems, basket?.discount || 0, feePercentage);
       
-      set({
-          basket: { 
-              ...currentBasket, 
-              items: newItems, 
-              subtotal: localSub, 
-              serviceFee: localFee, 
-              totalValue: localTot,
-              balance: newBalance 
-          },
-          itemCount: count,
-          subtotal: localSub, serviceFee: localFee, totalValue: localTot
+      const newItemCount = newItems.reduce((acc: number, i: any) => acc + i.quantity, 0);
+
+      const optimisticBasket = {
+          ...(basket || { id: 'temp', status: 'OPEN', month: 'Current', userId: '', amountPaid: 0 } as Basket),
+          items: newItems,
+          subtotal: localSub,
+          serviceFee: localFee,
+          totalValue: localTot,
+          balance: Math.max(0, localTot - (basket?.amountPaid || 0)),
+      } as Basket;
+
+      set({ 
+          basket: optimisticBasket, 
+          itemCount: newItemCount,
+          subtotal: localSub,
+          totalValue: localTot,
+          serviceFee: localFee
       });
+      // OPTIMISTIC UPDATE END
 
       try {
-          // Send absolute total quantity to the server (UPSERT)
-          await API.upsertBasketItem(product.id, targetQty, product.price);
+          await upsertBasketItem(product.id, quantity, product.price);
+          // Sync with server eventually
+          await get().refreshBasket();
       } catch (e) {
-          console.error("Add item failed, reverting state", e);
-          set(previousState);
+          console.error("Add item failed", e);
+          get().refreshBasket(); // Revert on error
       }
   },
 
   removeItem: async (productId) => {
+      // Just call addItem with 0 quantity which handles removal logic
       const item = get().basket?.items?.find((i: any) => i.productId === productId);
-      if (item) {
-          // Setting quantity to 0 triggers deletion in backend logic
-          await get().updateItem(productId, -item.quantity);
+      // Even if item.product is undefined (rare), we need to pass a dummy product with correct ID to trigger removal logic in addItem
+      // However, addItem expects a Product object. 
+      // If item.product is missing, we can try to construct a minimal one or call API directly.
+      if (item && item.product) {
+          await get().addItem(item.product, 0);
+      } else if (item) {
+          // Fallback if product details are missing locally
+          // We can't use addItem easily without full product obj for optimistic update of new list if we were adding, 
+          // but for removing, we just need ID. 
+          // But addItem logic relies on product obj.
+          // Let's call API directly and refresh.
+           try {
+              await upsertBasketItem(productId, 0, 0);
+              await get().refreshBasket();
+          } catch(e) {
+              console.error("Remove item failed", e);
+          }
       }
   },
 
   updateItem: async (productId, delta) => {
-      // Find the product in the current basket to get its details
+      // Wrapper to use absolute quantity
       const item = get().basket?.items?.find((i: any) => i.productId === productId);
       if (item && item.product) {
-          await get().addItem(item.product, delta);
+          await get().addItem(item.product, item.quantity + delta);
       }
   },
 
   applyCoupon: async (code) => {
+      // Re-using logic from service
       const discount = await API.applyCoupon(code);
       await get().refreshBasket();
       return discount;
@@ -281,13 +255,29 @@ export const useBasketStore = create<BasketState>((set, get) => ({
       await get().refreshBasket();
   },
 
-  updateLocalPayment: (amount) => {
-      const b = get().basket;
-      if (b) {
-          // Optimistic update: Show paid amount immediately
-          const newPaid = (b.amountPaid || 0) + amount;
-          const newBalance = Math.max(0, b.totalValue - newPaid);
-          set({ basket: { ...b, amountPaid: newPaid, balance: newBalance } });
+  updateLocalPayment: (amount: number, basketId?: string) => {
+      // Optimistic payment update
+      const { basket, outstandingBaskets } = get();
+      
+      // Check if it's the current basket
+      if (basket && (!basketId || basket.id === basketId)) {
+          const newPaid = (basket.amountPaid || 0) + amount;
+          const newBalance = Math.max(0, basket.totalValue - newPaid);
+          set({ basket: { ...basket, amountPaid: newPaid, balance: newBalance } });
+          return;
+      }
+
+      // Check outstanding baskets
+      const targetIndex = outstandingBaskets.findIndex(b => b.id === basketId);
+      if (targetIndex > -1) {
+          const target = outstandingBaskets[targetIndex];
+          const newPaid = (target.amountPaid || 0) + amount;
+          const newBalance = Math.max(0, target.totalValue - newPaid);
+          
+          const newOutstanding = [...outstandingBaskets];
+          newOutstanding[targetIndex] = { ...target, amountPaid: newPaid, balance: newBalance };
+          
+          set({ outstandingBaskets: newOutstanding });
       }
   }
 }));

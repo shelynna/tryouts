@@ -7,6 +7,7 @@ export enum UserRole {
 
 export enum BasketStatus {
   OPEN = 'OPEN',
+  DRAFT = 'DRAFT',
   PARTIAL = 'PARTIAL',
   LOCKED = 'LOCKED',
   PAID = 'PAID',
@@ -40,7 +41,9 @@ export interface User {
   isEmailVerified: boolean; 
   referralCode?: string;
   referredBy?: string;
-  planIntent?: string; 
+  planIntent?: string;
+  avatarUrl?: string;
+  referralCount?: number;
 }
 
 export interface Product {
@@ -87,9 +90,10 @@ export interface Basket {
   subtotal: number;
   serviceFee: number;
   discount: number; 
+  deliveryFee?: number; 
   totalValue: number;
   amountPaid: number;
-  balance: number; // ADDED: Critical for tracking remaining amount
+  balance: number; 
 
   status: BasketStatus;
   transactions: Transaction[];
@@ -105,6 +109,10 @@ export interface Basket {
   
   couponCode?: string;
   metadata?: Record<string, any>;
+  
+  refundRequested?: boolean;
+  isRolledOver?: boolean;
+  lockedAt?: string; // New field
 }
 
 export interface Delivery {
@@ -148,19 +156,50 @@ export interface SystemSettings {
     logo?: string;      
     logoWhite?: string; 
   };
+  
+  // Derived state from cycle
+  cycleStatus?: 'OPEN' | 'LOCKED' | 'CLOSED';
 }
 
 export interface Cycle {
   id: string;
   name: string;
-  paymentStartDate?: string | null;
-  paymentEndDate?: string | null;
+  month_year?: string; 
+  // Update status to include lowercase variants used in DB/logic
+  status: 'OPEN' | 'LOCKED' | 'CLOSED' | 'upcoming' | 'active' | 'locked' | 'assessing' | 'closed';
+  paymentStartDate?: string | null; // Mapped to open_date
+  paymentEndDate?: string | null; // Mapped to lock_date
   lockDate?: string | null;
   unlockDate?: string | null;
   bulkStartDate?: string | null;
   bulkEndDate?: string | null;
   deliveryDate?: string | null;
+  assessmentDate?: string | null; 
   isActive: boolean;
+  open_date?: string; // Raw DB
+  lock_date?: string; // Raw DB
+}
+
+export type CyclePhase = 
+  | 'no_access' 
+  | 'upcoming' 
+  | 'active' 
+  | 'locked' 
+  | 'assessing';
+
+export interface CycleAccess {
+  canAccess: boolean;
+  canAddToCart: boolean;
+  canPay: boolean;
+  phase: CyclePhase;
+  message: string;
+  nextCycle?: Cycle;
+}
+
+export interface CycleDates {
+  open_date?: string | Date;
+  lock_date?: string | Date;
+  assessment_date?: string | Date;
 }
 
 export interface ProcurementItem {
@@ -192,6 +231,7 @@ export interface AdminBasketEntry {
     totalValue: number;
     amountPaid: number;
     itemCount: number;
+    deliveryBatch?: string;
 }
 
 export interface TopUpRequest {

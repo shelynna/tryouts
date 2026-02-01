@@ -35,7 +35,7 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
   
   // Combine 'All' with defined categories
   const categories = ['All', ...PRODUCT_CATEGORIES];
-  const { basket, addItem, itemCount, isBasketLocked, openCart } = useBasket();
+  const { basket, addItem, itemCount, isBasketLocked, isPaymentEnabled, openCart } = useBasket();
 
   // Debounced fetch for search & category filter
   useEffect(() => {
@@ -94,14 +94,18 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
   const getItemCount = (pid: string) => basket?.items?.find((i: any) => i.productId === pid)?.quantity || 0;
 
   const handleIncrement = async (p: Product) => {
-      await addItem(p, 1);
-      if (isBasketLocked) {
-          showToast("Added to your Next Month's Basket", 'info');
-      }
+      const current = getItemCount(p.id);
+      // Pass absolute new quantity
+      await addItem(p, current + 1);
+      if (current === 0) onAction(`${p.name} added to basket`);
   };
 
   const handleDecrement = async (p: Product) => {
-      await addItem(p, -1);
+      const current = getItemCount(p.id);
+      if (current > 0) {
+          // Pass absolute new quantity
+          await addItem(p, current - 1);
+      }
   };
 
   return (
@@ -198,17 +202,6 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
               </div>
           </div>
 
-          {/* Global Notification: Locked State */}
-          {isBasketLocked && (
-              <div className="mb-8 bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3 text-blue-800 text-sm font-medium shadow-sm animate-in slide-in-from-top-4 duration-500">
-                  <div className="bg-blue-100 p-2 rounded-lg shrink-0"><Info size={18} /></div>
-                  <span className="leading-relaxed">
-                      <strong>Current cycle is locked for processing.</strong><br/> 
-                      Items you add now will go into your <span className="underline decoration-blue-400 decoration-2 font-bold">Next Month's Basket</span>.
-                  </span>
-              </div>
-          )}
-
           {/* Products Grid / States */}
           {isLoading ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
@@ -285,9 +278,9 @@ export const ProductsPage: React.FC<{ onAction: (msg: string) => void }> = ({ on
           onClose={() => setSelectedProduct(null)}
           product={selectedProduct}
           currentQuantity={selectedProduct ? getItemCount(selectedProduct.id) : 0}
-          onIncrement={() => selectedProduct && handleIncrement(selectedProduct)}
-          onDecrement={() => selectedProduct && handleDecrement(selectedProduct)}
-          isLocked={isBasketLocked} 
+          onIncrement={() => selectedProduct ? handleIncrement(selectedProduct) : Promise.resolve()}
+          onDecrement={() => selectedProduct ? handleDecrement(selectedProduct) : Promise.resolve()}
+          isLocked={false} 
       />
     </div>
   );

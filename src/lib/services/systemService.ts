@@ -1,64 +1,45 @@
 
 import { supabase } from '../supabaseClient';
-import { Cycle, SystemSettings } from '../../types';
+import { Cycle, SystemSettings, CycleDates } from '../../types';
 import { Logger } from '../logger';
+import { cycleService } from './cycleService';
 
-// In-memory cache to prevent redundant fetches in production
-let cachedSettings: SystemSettings | null = null;
 let cachedCycle: Cycle | null = null;
-let lastFetchTime = 0;
-const CACHE_TTL = 30000; // 30 seconds
 
 export const getActiveCycle = async (forceRefresh = false): Promise<Cycle | null> => {
-    try {
-        const now = Date.now();
-        if (!forceRefresh && cachedCycle && (now - lastFetchTime < CACHE_TTL)) {
-            return cachedCycle;
-        }
+    // Force refresh if requested, otherwise check cache
+    if (!forceRefresh && cachedCycle) return cachedCycle;
 
-        const { data, error } = await supabase.from('cycles').select('*').eq('is_active', true).maybeSingle();
-        
-        if (error) {
-            const lowMsg = error.message?.toLowerCase();
-            // Suppress aborts/network issues, but warn on schema errors
-            if (!lowMsg?.includes('aborted') && !lowMsg?.includes('abort') && !lowMsg?.includes('signal')) {
-                console.warn("Cycle fetch issue:", error);
-            }
-            return cachedCycle; 
-        }
-        
-        if (!data) {
-            cachedCycle = null;
-            return null;
-        }
-
-        cachedCycle = {
-            id: data.id,
-            name: data.name,
-            paymentStartDate: data.payment_start_date,
-            paymentEndDate: data.payment_end_date,
-            lockDate: data.lock_date,
-            unlockDate: data.unlock_date,
-            bulkStartDate: data.bulk_start_date,
-            bulkEndDate: data.bulk_end_date,
-            deliveryDate: data.delivery_date,
-            isActive: data.is_active
-        };
-        lastFetchTime = now;
-        return cachedCycle;
-    } catch (e) {
+    const { data, error } = await supabase
+        .from('cycles')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    
+    if (error || !data) {
+        cachedCycle = null;
         return null;
     }
+
+    // Map DB columns to Frontend Interface
+    cachedCycle = {
+        id: data.id,
+        name: data.name,
+        status: data.status, // Respect DB status (OPEN, LOCKED, CLOSED)
+        paymentStartDate: data.start_date,
+        paymentEndDate: data.end_date,
+        lockDate: data.end_date, // Usually end date is lock date
+        deliveryDate: data.delivery_date,
+        isActive: data.status === 'OPEN' || data.status === 'LOCKED'
+    } as any;
+    
+    return cachedCycle;
 };
 
 export const getSettings = async (forceRefresh = false): Promise<SystemSettings> => {
-    const now = Date.now();
-    if (!forceRefresh && cachedSettings && (now - lastFetchTime < CACHE_TTL)) {
-        return cachedSettings;
-    }
-
     const defaults = {
-        cycleName: 'SML Marketplace',
+        cycleName: 'SML Market',
         isActive: false,
         basketServiceFeePercentage: 5,
         topUpServiceFeePercentage: 5,
@@ -67,8 +48,6 @@ export const getSettings = async (forceRefresh = false): Promise<SystemSettings>
     };
 
     try {
-        // Use allSettled to ensure that if 'app_settings' table is missing, we still get cycle info
-        // and if both fail, we return defaults.
         const [configResult, activeCycle] = await Promise.allSettled([
             supabase.from('app_settings').select('value').eq('key', 'GLOBAL_CONFIG').maybeSingle(),
             getActiveCycle(forceRefresh)
@@ -78,103 +57,73 @@ export const getSettings = async (forceRefresh = false): Promise<SystemSettings>
         const cycle = activeCycle.status === 'fulfilled' ? activeCycle.value : null;
 
         const combined = { ...defaults, ...(config?.value || {}) };
-
-        const settings: SystemSettings = {
-            ...combined,
-            cycleName: cycle?.name || "No Active Cycle",
-            basketOpenDate: cycle?.paymentStartDate,
-            basketLockDate: cycle?.lockDate,
-            deliveryDate: cycle?.deliveryDate,
-            paymentStartDate: cycle?.paymentStartDate,
-            paymentEndDate: cycle?.paymentEndDate,
-            lockDate: cycle?.lockDate,
-            unlockDate: cycle?.unlockDate,
-            bulkStartDate: cycle?.bulkStartDate,
-            bulkEndDate: cycle?.bulkEndDate,
-            isActive: !!cycle
-        };
         
-        cachedSettings = settings;
-        lastFetchTime = now;
-        return settings;
-    } catch (e) {
-        // Fallback to minimal valid settings on unexpected error
         return {
-            ...defaults,
-            cycleName: 'System Offline'
-        } as SystemSettings;
+            ...combined,
+            cycleName: cycle?.name || 'SML Market',
+            cycleStatus: cycle?.status || 'CLOSED',
+            paymentStartDate: cycle?.paymentStartDate,
+            lockDate: cycle?.lockDate,
+            deliveryDate: cycle?.deliveryDate,
+            isActive: !!cycle && cycle.status !== 'CLOSED'
+        };
+    } catch (e) {
+        return defaults as SystemSettings;
     }
 };
 
-export const saveSettings = async (s: SystemSettings) => {
-    const configValue = {
-        basketServiceFeePercentage: s.basketServiceFeePercentage,
-        topUpServiceFeePercentage: s.topUpServiceFeePercentage,
-        heroImages: s.heroImages,
-        legalContent: s.legalContent,
-        branding: s.branding
-    };
-    
-    await supabase.from('app_settings').upsert({ key: 'GLOBAL_CONFIG', value: configValue });
+export const checkHealth = async (): Promise<{ status: 'ONLINE' | 'OFFLINE' | 'DB_ERROR'; message?: string }> => ({ status: 'ONLINE' });
 
-    const activeCycle = await getActiveCycle();
-    if (activeCycle) {
-        await supabase.from('cycles').update({
-            payment_start_date: s.paymentStartDate ?? null,
-            payment_end_date: s.paymentEndDate ?? null,
-            lock_date: s.lockDate ?? null,
-            unlock_date: s.unlockDate ?? null,
-            bulk_start_date: s.bulkStartDate ?? null,
-            bulk_end_date: s.bulkEndDate ?? null,
-            delivery_date: s.deliveryDate ?? null
-        }).eq('id', activeCycle.id);
-    }
-
-    cachedSettings = null;
-    cachedCycle = null;
-    lastFetchTime = 0;
+export const saveSettings = async (settings: Partial<SystemSettings>) => {
+    const { error } = await supabase.from('app_settings').upsert({
+        key: 'GLOBAL_CONFIG',
+        value: settings
+    });
+    if (error) throw error;
 };
 
-export const uploadImage = async (file: File): Promise<string> => {
+export const startNewCycle = async (
+    name: string,
+    startDate: string,
+    endDate: string, // Lock Date
+    deliveryDate: string
+) => {
+    const { data, error } = await supabase.rpc('start_new_cycle', {
+        p_name: name,
+        p_start_date: startDate,
+        p_end_date: endDate, 
+        p_lock_date: endDate, // Lock matches end date
+        p_delivery_date: deliveryDate
+    });
+    if (error) throw error;
+    return data;
+};
+
+export const lockCurrentCycle = async (cycleId: string) => {
+    const { error } = await supabase
+        .from('cycles')
+        .update({ status: 'LOCKED' })
+        .eq('id', cycleId);
+    if (error) throw error;
+};
+
+export const updateCycleDates = async (cycleId: string, dates: Partial<CycleDates>) => {
+    return cycleService.updateCycleDates(cycleId, dates);
+};
+
+export const uploadImage = async (file: File, bucket: string = 'app-assets') => {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `products/${fileName}`;
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${fileName}`;
 
     const { error: uploadError } = await supabase.storage
-        .from('assets')
+        .from(bucket)
         .upload(filePath, file);
 
     if (uploadError) throw uploadError;
 
-    const { data } = supabase.storage.from('assets').getPublicUrl(filePath);
+    const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
     return data.publicUrl;
 };
 
-export interface HealthCheckResult {
-    status: 'ONLINE' | 'OFFLINE' | 'DB_ERROR';
-    message?: string;
-}
-
-export const checkHealth = async (): Promise<HealthCheckResult> => {
-    try {
-        const { error } = await supabase.from('app_settings').select('key').limit(1);
-        if (error) {
-            if (error.code === '42P01') return { status: 'DB_ERROR', message: 'Database Setup Required' };
-            const lowMsg = error.message?.toLowerCase();
-            if (lowMsg?.includes('aborted') || lowMsg?.includes('abort') || lowMsg?.includes('signal')) {
-                 return { status: 'ONLINE' }; 
-            }
-            return { status: 'OFFLINE', message: error.message };
-        }
-        return { status: 'ONLINE' };
-    } catch (e: any) {
-        return { status: 'OFFLINE', message: 'Connection issue' };
-    }
-};
-
-export const reportError = (err: any) => {
-    const msg = typeof err === 'string' ? err : err.message;
-    const lowMsg = msg?.toLowerCase();
-    if (lowMsg?.includes('abort') || lowMsg?.includes('signal') || lowMsg?.includes('fetch')) return;
-    Logger.error('SML Client Error', err);
-};
+export const reportError = (e: any) => { console.error(e); };

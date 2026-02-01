@@ -2,9 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Product } from '../../types';
-import { Plus, ShoppingCart, ImageOff, Loader2 } from 'lucide-react';
-import { formatCurrency } from '../../lib/utils';
-import { cn } from '../../lib/utils';
+import { Plus, ImageOff, Loader2 } from 'lucide-react';
+import { formatCurrency, cn } from '../../lib/utils';
 import { ASSETS } from '../../assets';
 
 const MotionDiv = motion.div as any;
@@ -18,40 +17,24 @@ interface ProductCardProps {
     onClick?: (p: Product) => void;
 }
 
-export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({ product, count, isLocked, onIncrement, onDecrement, onClick }, ref) => {
+export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({ product, count, isLocked, onIncrement, onClick }, ref) => {
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Safe initialization to prevent 'blob:...' error on first render
-  const getSafeImage = (p: Product) => {
-      const img = p.image || (p.images && p.images[0]);
-      // Explicitly block local blob URLs that might have been saved erroneously
-      if (img && !img.startsWith('blob:')) return img;
-      return ASSETS.PRODUCT_PLACEHOLDER;
-  };
-
-  const [imgSrc, setImgSrc] = useState<string>(getSafeImage(product));
+  const [imgSrc, setImgSrc] = useState<string>(product.image || ASSETS.PRODUCT_PLACEHOLDER);
   const [hasImageError, setHasImageError] = useState(false);
   
   const isSoldOut = product.stockStatus === 'SOLD_OUT';
 
-  // Sync image source if product changes
   useEffect(() => {
-    const newSrc = getSafeImage(product);
-    if (newSrc !== imgSrc) {
-        setImgSrc(newSrc);
-        setHasImageError(false);
-    }
-  }, [product]);
+    if (product.image) setImgSrc(product.image);
+  }, [product.image]);
 
-  const handleAdd = async (e: React.MouseEvent) => {
+  const handleQuickAdd = async (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (isLoading || isSoldOut) return;
+      if (isLoading || isLocked || isSoldOut) return;
       
       setIsLoading(true);
       try {
           await onIncrement(product);
-      } catch (error) {
-          console.debug("Increment suppressed", error);
       } finally {
           setIsLoading(false);
       }
@@ -60,95 +43,75 @@ export const ProductCard = React.forwardRef<HTMLDivElement, ProductCardProps>(({
   return (
       <MotionDiv
         ref={ref}
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         whileHover={{ y: -4 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.3 }}
         onClick={() => onClick?.(product)}
-        className="group cursor-pointer flex flex-col gap-3 h-full"
+        className="group cursor-pointer flex flex-col h-full bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md border border-stone-100 transition-all select-none"
       >
         {/* Image Container */}
-        <div className="relative aspect-[4/5] bg-stone-100 rounded-3xl overflow-hidden mb-1 shadow-sm border border-stone-100">
+        <div className="relative aspect-[1/1] bg-[#F8F8F8] overflow-hidden">
            {hasImageError ? (
-               <div className="absolute inset-0 flex flex-col items-center justify-center text-stone-300">
-                   <ImageOff size={32} />
+               <div className="absolute inset-0 flex items-center justify-center text-stone-300">
+                   <ImageOff size={24} />
                </div>
            ) : (
                <img 
                  src={imgSrc} 
                  alt={product.name} 
                  className={cn(
-                     "w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110", 
-                     isSoldOut ? "grayscale opacity-60" : ""
+                     "w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-110", 
+                     isSoldOut ? "grayscale opacity-50" : "mix-blend-multiply"
                  )}
-                 onError={() => {
-                     setHasImageError(true);
-                     setImgSrc(ASSETS.PRODUCT_PLACEHOLDER);
-                 }}
+                 onError={() => { setHasImageError(true); setImgSrc(ASSETS.PRODUCT_PLACEHOLDER); }}
                />
            )}
            
-           {/* Sold Out Badge */}
            {isSoldOut && (
-               <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-[2px] flex items-center justify-center z-10">
-                   <span className="bg-white text-stone-900 text-[10px] font-bold uppercase tracking-[0.2em] px-4 py-2 rounded-full shadow-xl">
+               <div className="absolute inset-0 bg-stone-900/10 flex items-center justify-center">
+                   <span className="bg-stone-900 text-white text-[10px] font-bold uppercase px-3 py-1 rounded-full shadow-lg">
                        Sold Out
                    </span>
                </div>
            )}
 
-           {/* Quantity Indicator Chip (Popping Animation on change) */}
-           <AnimatePresence mode="wait">
-             {count > 0 && !isSoldOut && (
+           {/* Count Badge on Image */}
+           <AnimatePresence>
+             {count > 0 && (
                  <MotionDiv 
-                    key={count}
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.5, opacity: 0 }}
-                    className="absolute top-4 right-4 bg-brand-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-xl flex items-center gap-2 border border-brand-500/50 backdrop-blur-md z-20"
+                    initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                    className="absolute top-2 right-2 bg-stone-900 text-white text-[10px] font-bold h-6 w-6 flex items-center justify-center rounded-full shadow-lg z-10"
                  >
-                     <ShoppingCart size={12} strokeWidth={2.5} />
-                     <span>{count}</span>
+                     {count}
                  </MotionDiv>
              )}
            </AnimatePresence>
-           
-           {/* Actions Overlay */}
-           {!isSoldOut && (
-               <div className="absolute bottom-3 right-3 z-20">
-                   <button 
-                     onClick={handleAdd}
-                     disabled={isLoading}
-                     className={cn(
-                         "w-12 h-12 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform",
-                         isLoading ? "bg-stone-100" : "bg-white hover:bg-brand-900 hover:text-white text-stone-900",
-                         count > 0 ? "bg-brand-900 text-white" : ""
-                     )}
-                   >
-                       {isLoading ? (
-                           <Loader2 size={20} className="animate-spin text-stone-400" />
-                       ) : (
-                           <Plus size={24} strokeWidth={2.5} />
-                       )}
-                   </button>
-               </div>
-           )}
         </div>
 
-        {/* Info Area */}
-        <div className="px-1 flex flex-col gap-1">
-           <div className="flex justify-between items-start gap-2">
-              <h3 className="font-heading font-bold text-stone-900 text-sm md:text-base leading-tight group-hover:text-brand-700 transition-colors line-clamp-1">
-                 {product.name}
-              </h3>
-              <span className="font-sans font-black text-brand-700 text-sm md:text-base tabular-nums whitespace-nowrap">
-                  {formatCurrency(product.price)}
-              </span>
+        {/* Info & Actions */}
+        <div className="p-3 flex flex-col flex-1 gap-1">
+           <div className="flex-1">
+               <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">{product.category}</p>
+               <h3 className="font-bold text-stone-900 text-sm leading-tight line-clamp-2 min-h-[2.5em]">{product.name}</h3>
+               <p className="text-xs text-stone-500 mt-1">{product.size}</p>
            </div>
-           <div className="flex items-center justify-between">
-                <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest">
-                    {product.size} • {product.category}
-                </p>
+           
+           <div className="flex items-end justify-between mt-2">
+               <span className="font-mono font-bold text-brand-700 text-lg">
+                   {formatCurrency(product.price)}
+               </span>
+               
+               {/* Quick Add Button */}
+               {!isLocked && !isSoldOut && (
+                   <button 
+                     onClick={handleQuickAdd}
+                     disabled={isLoading}
+                     className="w-8 h-8 rounded-full bg-stone-100 hover:bg-brand-900 hover:text-white text-stone-900 flex items-center justify-center transition-colors shadow-sm active:scale-95"
+                   >
+                       {isLoading ? <Loader2 size={14} className="animate-spin"/> : <Plus size={16} />}
+                   </button>
+               )}
            </div>
         </div>
       </MotionDiv>

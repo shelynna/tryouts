@@ -27,6 +27,14 @@ export const OrderHealth: React.FC<OrderHealthProps> = ({ breakdown }) => {
                   <span className="font-mono font-bold text-lg text-stone-900">{breakdown['OPEN'] || 0}</span>
               </div>
 
+              <div className="flex justify-between items-center p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                  <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-blue-400"></div>
+                      <span className="text-sm font-bold text-blue-700">Partial Payment</span>
+                  </div>
+                  <span className="font-mono font-bold text-lg text-blue-800">{breakdown['PARTIAL'] || 0}</span>
+              </div>
+
               <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                   <div className="flex items-center gap-3">
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>

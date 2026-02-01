@@ -1,35 +1,60 @@
 
 import React from 'react';
-import { Button, Card } from '../components/ui';
-import { ArrowLeft, Calendar, Lock, Truck, CreditCard, Info } from 'lucide-react';
+import { Button, Card, Skeleton } from '../components/ui';
+import { ArrowLeft, Truck, CreditCard, Info, ShoppingBag, Wallet } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { API } from '../lib/api';
+
+const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "TBD";
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const suffix = ["th", "st", "nd", "rd"][((day % 100) > 10 && (day % 100) < 20) ? 0 : (day % 10 < 4 ? day % 10 : 0)];
+    return `${day}${suffix} ${date.toLocaleString('default', { month: 'short' })}`;
+};
 
 export const PricingCyclePage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const { data: settings, isLoading } = useQuery({
+      queryKey: ['settings'],
+      queryFn: () => API.getSettings()
+  });
+
+  if (isLoading || !settings) {
+      return (
+          <div className="max-w-4xl mx-auto px-6 py-20 pt-24 space-y-8">
+              <Skeleton className="h-12 w-3/4 mx-auto mb-10" />
+              <Skeleton className="h-32 w-full rounded-2xl" />
+              <Skeleton className="h-32 w-full rounded-2xl" />
+          </div>
+      );
+  }
+
   const steps = [
     {
-      date: "1st - 24th",
-      title: "Payment Window Open",
-      desc: "The marketplace is open. You can add items to your basket and pay in installments (any amount, any time).",
-      icon: <CreditCard className="text-brand-600" />,
+      date: "Always Open",
+      title: "Add Items Anytime",
+      desc: "Our marketplace is always open. Browse and add wholesale essentials to your basket whenever you need.",
+      icon: <ShoppingBag className="text-brand-600" />,
       color: "bg-brand-50 border-brand-200"
     },
     {
-      date: "25th",
-      title: "Cycle Lock Date",
-      desc: "Baskets are locked. You cannot add or remove items after this date. Final payments must be made to secure your order.",
-      icon: <Lock className="text-orange-600" />,
-      color: "bg-orange-50 border-orange-200"
+      date: "Flexible",
+      title: "Pay Small-Small",
+      desc: "Make partial payments via Mobile Money at your own pace. Your items are secured as you pay.",
+      icon: <Wallet className="text-emerald-600" />,
+      color: "bg-emerald-50 border-emerald-200"
     },
     {
-      date: "26th - 27th",
+      date: "Monthly",
       title: "Bulk Procurement",
-      desc: "SML aggregates all paid orders and purchases fresh stock directly from manufacturers.",
+      desc: "At the end of the cycle, SML aggregates all paid orders and purchases fresh stock directly from manufacturers.",
       icon: <Info className="text-blue-600" />,
       color: "bg-blue-50 border-blue-200"
     },
     {
-      date: "28th",
+      date: formatDate(settings.deliveryDate),
       title: "Delivery Day",
-      desc: "Distribution centers open at Hall 7, Conti, and other designated points. You receive a code to collect your items.",
+      desc: "Distribution centers open at Hall 7, Conti, and other designated points. Collect with your code.",
       icon: <Truck className="text-stone-700" />,
       color: "bg-stone-100 border-stone-200"
     }
@@ -39,9 +64,9 @@ export const PricingCyclePage: React.FC<{ onBack: () => void }> = ({ onBack }) =
     <div className="max-w-4xl mx-auto px-6 py-20 font-sans pt-24">
         <div className="text-center max-w-2xl mx-auto mb-16">
             <span className="text-brand-600 font-bold uppercase tracking-widest text-xs mb-4 block">Transparency First</span>
-            <h1 className="text-4xl md:text-5xl font-serif font-bold text-stone-900 mb-6">The Monthly Cycle</h1>
+            <h1 className="text-4xl md:text-5xl font-serif font-bold text-stone-900 mb-6">{settings.cycleName}</h1>
             <p className="text-lg text-stone-500 font-light leading-relaxed">
-                Our system runs on a strict monthly schedule to guarantee wholesale prices and timely delivery.
+                Our system runs continuously to guarantee you wholesale prices and convenient delivery.
             </p>
         </div>
 
@@ -69,26 +94,16 @@ export const PricingCyclePage: React.FC<{ onBack: () => void }> = ({ onBack }) =
 
         <div className="grid md:grid-cols-2 gap-8 mb-16">
             <Card className="p-8">
-                <h3 className="font-serif font-bold text-xl text-stone-900 mb-4">Service Fee (5%)</h3>
+                <h3 className="font-serif font-bold text-xl text-stone-900 mb-4">Service Fee ({settings.basketServiceFeePercentage}%)</h3>
                 <p className="text-stone-500 mb-4 text-sm leading-relaxed">
-                    A small fee added to your basket total. This covers:
+                    A small fee added to your basket total covers transport, logistics, and handling.
                 </p>
-                <ul className="space-y-2 text-sm text-stone-600 font-medium">
-                    <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-stone-300 mt-2"></div> Transport & Logistics to campus</li>
-                    <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-stone-300 mt-2"></div> Packaging & Handling</li>
-                    <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-stone-300 mt-2"></div> Payment Processing Fees</li>
-                </ul>
             </Card>
             <Card className="p-8">
-                <h3 className="font-serif font-bold text-xl text-stone-900 mb-4">Top-Up Interest (5%)</h3>
+                <h3 className="font-serif font-bold text-xl text-stone-900 mb-4">Top-Up Interest ({settings.topUpServiceFeePercentage}%)</h3>
                 <p className="text-stone-500 mb-4 text-sm leading-relaxed">
-                    Only applies if you use our credit facility.
+                    Only applies if you use our credit facility. Helps keep the credit pool sustainable.
                 </p>
-                <ul className="space-y-2 text-sm text-stone-600 font-medium">
-                    <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-stone-300 mt-2"></div> Applied only to the amount borrowed</li>
-                    <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-stone-300 mt-2"></div> Repaid in the subsequent month</li>
-                    <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-stone-300 mt-2"></div> Keeps the credit pool sustainable</li>
-                </ul>
             </Card>
         </div>
 

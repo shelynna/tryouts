@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Pagination, Badge, useToast } from '../../ui';
 import { User, UserRole } from '../../../types';
 import { API } from '../../../lib/api';
-import { Search, Mail, Phone, MapPin, Ticket, CheckCircle, Shield, Briefcase, User as UserIcon, Edit2 } from 'lucide-react';
+import { Search, Mail, Phone, MapPin, Ticket, CheckCircle, Shield, Briefcase, User as UserIcon, Edit2, Download, Eye, FileText, Filter } from 'lucide-react';
 import { formatCurrency } from '../../../lib/utils';
 import { Logger } from '../../../lib/logger';
 import { RoleManagementModal } from './modals/RoleManagementModal';
+import { UserDashboardModal } from './modals/UserDashboardModal';
 
 const ITEMS_PER_PAGE = 8;
 
@@ -17,7 +17,12 @@ export const UsersTab: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const { showToast } = useToast();
     
+    // Modal States
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [viewingUser, setViewingUser] = useState<User | null>(null);
+    
+    // Export State
+    const [exportLoading, setExportLoading] = useState(false);
 
     useEffect(() => {
         fetchUsers();
@@ -49,7 +54,7 @@ export const UsersTab: React.FC = () => {
             showToast(`User ${action.toLowerCase()}ed`, 'success');
         } catch (e: any) {
             Logger.error(`Failed to ${action} user`, e, { userId: user.id });
-            showToast(e.message || "Action failed", 'error');
+            showToast(e.message || "Action failed", "error");
         }
     };
 
@@ -60,8 +65,79 @@ export const UsersTab: React.FC = () => {
             showToast(`Role updated to ${newRole}`, 'success');
         } catch (e: any) {
             showToast("Failed to update role", "error");
-            throw e; // Modal handles loading state
+            throw e; 
         }
+    };
+
+    const handleExport = async (type: 'ALL_PROFILES' | 'DEBTORS') => {
+        setExportLoading(true);
+        try {
+            let data: any[] = [];
+            let filename = '';
+            
+            if (type === 'ALL_PROFILES') {
+                data = await API.exportAllProfiles();
+                if (!data || data.length === 0) {
+                    showToast("No profiles found.", "info");
+                    setExportLoading(false);
+                    return;
+                }
+                
+                // CSV for Phone Contacts
+                const headers = ['Full Name', 'Phone Number', 'Email', 'Pickup Point', 'Subscriber', 'Joined'];
+                const rows = data.map((r: any) => [
+                    `"${r.full_name}"`,
+                    `"${r.phone || ''}"`,
+                    `"${r.email || ''}"`,
+                    `"${r.pickup_point || ''}"`,
+                    r.is_subscriber ? 'Yes' : 'No',
+                    r.created_at ? new Date(r.created_at).toLocaleDateString() : ''
+                ]);
+                const csvContent = [headers.join(','), ...rows.map((row: any) => row.join(','))].join('\n');
+                
+                downloadCSV(csvContent, `sml_phone_contacts_${new Date().toISOString().split('T')[0]}.csv`);
+                showToast("Phone contacts exported!", "success");
+
+            } else if (type === 'DEBTORS') {
+                data = await API.exportUserContacts(undefined, true);
+                if (!data || data.length === 0) {
+                    showToast("No debtors found.", "info");
+                    setExportLoading(false);
+                    return;
+                }
+
+                const headers = ['Full Name', 'Phone', 'Pickup Point', 'Cycle', 'Total Due', 'Paid', 'Balance'];
+                const rows = data.map((r: any) => [
+                    `"${r.full_name}"`,
+                    `"${r.phone || ''}"`,
+                    `"${r.pickup_point || ''}"`,
+                    `"${r.cycle_name}"`,
+                    r.total_due,
+                    r.total_paid,
+                    r.balance
+                ]);
+                const csvContent = [headers.join(','), ...rows.map((row: any) => row.join(','))].join('\n');
+                
+                downloadCSV(csvContent, `sml_debtors_${new Date().toISOString().split('T')[0]}.csv`);
+                showToast("Debtors list exported!", "success");
+            }
+            
+        } catch (e: any) {
+            showToast("Export failed: " + e.message, "error");
+        } finally {
+            setExportLoading(false);
+        }
+    };
+
+    const downloadCSV = (content: string, filename: string) => {
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const filteredUsers = users.filter(u => 
@@ -93,20 +169,53 @@ export const UsersTab: React.FC = () => {
                 user={editingUser} 
                 onSave={handleRoleUpdate} 
             />
+            
+            <UserDashboardModal
+                isOpen={!!viewingUser}
+                onClose={() => setViewingUser(null)}
+                user={viewingUser}
+            />
 
-            <div className="p-6 border-b border-stone-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-stone-50/50">
+            <div className="p-6 border-b border-stone-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-stone-50/50">
                 <div>
                     <h3 className="font-heading font-bold text-xl text-brand-900">User Directory</h3>
                     <p className="text-sm text-stone-500">Manage {filteredUsers.length} student accounts.</p>
                 </div>
-                <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-3 top-3.5 text-stone-400" size={16} />
-                    <Input 
-                        placeholder="Search name, code, email..." 
-                        value={search} 
-                        onChange={e => setSearch(e.target.value)}
-                        className="pl-10 h-11 bg-white border-stone-200"
-                    />
+                
+                <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3">
+                    <div className="relative flex-1 sm:w-64">
+                        <Search className="absolute left-3 top-3.5 text-stone-400" size={16} />
+                        <Input 
+                            placeholder="Search name, code, email..." 
+                            value={search} 
+                            onChange={e => setSearch(e.target.value)}
+                            className="pl-10 h-11 bg-white border-stone-200"
+                        />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                        <Button 
+                            variant="outline" 
+                            size="md" 
+                            className="gap-2 bg-white" 
+                            onClick={() => handleExport('ALL_PROFILES')}
+                            disabled={exportLoading}
+                            title="Download full list of user phone numbers"
+                        >
+                            {exportLoading ? <span className="animate-spin"><Download size={16}/></span> : <Phone size={16}/>}
+                            Phone Contacts
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            size="md" 
+                            className="gap-2 bg-white text-brand-700 border-brand-200 hover:bg-brand-50"
+                            onClick={() => handleExport('DEBTORS')}
+                            disabled={exportLoading}
+                        >
+                            <FileText size={16}/>
+                            Debtors
+                        </Button>
+                    </div>
                 </div>
             </div>
 
@@ -185,6 +294,15 @@ export const UsersTab: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex items-center justify-center gap-2">
+                                            <Button 
+                                                size="sm" 
+                                                variant="secondary"
+                                                onClick={() => setViewingUser(user)}
+                                                className="h-8 px-2 border-stone-200 text-stone-600 hover:text-brand-700 hover:border-brand-200 bg-white"
+                                                title="View User Dashboard"
+                                            >
+                                                <Eye size={14} />
+                                            </Button>
                                             <Button 
                                                 size="sm" 
                                                 variant="outline"

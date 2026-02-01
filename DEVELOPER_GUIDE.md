@@ -36,5 +36,15 @@ The application is optimized for deployment as a Static Site (SPA).
 - **Routing**: Client-side routing is supported via `.htaccess` (for Apache/cPanel) or redirect rules (for Vercel/Netlify), ensuring all 404s route to `index.html`.
 - **Assets**: Production assets are served from the root `/assets` directory with appropriate cache-control headers.
 
+## 6. Database Management
+
+### 6.1 Resetting the Database
+If you are experiencing schema conflicts or want to start fresh:
+
+1.  **Open Supabase SQL Editor**: Go to your project dashboard on Supabase.
+2.  **Run Reset Script**: Copy and run the content of `supabase/reset.sql`. This will **WIPE ALL DATA**.
+3.  **Apply Master Schema**: Immediately after, copy and run the content of `supabase/schema.sql`.
+4.  **Restart App**: Reload your frontend to sync with the new structure.
+
 ---
 *Built for SML Production Environment.*

@@ -6,6 +6,9 @@ import * as basketService from './services/basketService';
 import * as paymentService from './services/paymentService';
 import * as deliveryService from './services/deliveryService';
 import * as adminService from './services/adminService';
+import { subscriptionService } from './services/subscriptionService';
+import { creditService } from './services/creditService';
+import { exclusiveDealsService } from './services/exclusiveService';
 
 // Consolidate all services into a single API object for backward compatibility
 export const API = {
@@ -15,5 +18,8 @@ export const API = {
     ...basketService,
     ...paymentService,
     ...deliveryService,
-    ...adminService
+    ...adminService,
+    subscription: subscriptionService,
+    credit: creditService,
+    exclusive: exclusiveDealsService
 };

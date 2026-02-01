@@ -6,18 +6,80 @@ import { API } from '../../../lib/api';
 import { formatDate, formatCurrency, generateSmlId } from '../../../lib/utils';
 import { 
     CreditCard, Package, ChevronRight, Loader2, RefreshCw, 
-    Calendar, Receipt, Download, ShoppingBag, Truck, CheckCircle 
+    Calendar, Receipt, Download, ShoppingBag, Truck, CheckCircle, X 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MotionDiv = motion.div as any;
 
+const TransactionReceiptModal: React.FC<{ isOpen: boolean; onClose: () => void; tx: Transaction | null }> = ({ isOpen, onClose, tx }) => {
+    if (!tx) return null;
+
+    const receiptNumber = tx.metadata?.receipt_number || tx.id.substring(tx.id.length - 10);
+    const dateStr = new Date(tx.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const timeStr = new Date(tx.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const mobileEnd = tx.metadata?.authorization?.last4 ? `Ending with ${tx.metadata.authorization.last4}` : 'Mobile Money';
+    const channel = tx.metadata?.authorization?.channel || 'momo';
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} size="sm" className="bg-stone-50">
+            <div className="flex flex-col items-center text-center pt-4 pb-8 space-y-6">
+                
+                {/* Header Amount */}
+                <div>
+                    <p className="text-stone-500 text-xs font-bold uppercase tracking-widest mb-1">Amount Paid</p>
+                    <h1 className="text-4xl font-mono font-bold text-stone-900">{formatCurrency(tx.amount)}</h1>
+                </div>
+
+                <div className="w-full h-px bg-stone-200"></div>
+
+                <div className="w-full space-y-4">
+                    <h3 className="text-sm font-bold text-stone-900 mb-4">Transaction Details</h3>
+                    
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-stone-500">Reference</span>
+                        <span className="font-mono font-bold text-stone-800 text-xs">{tx.id}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-stone-500">Receipt Number</span>
+                        <span className="font-mono font-bold text-stone-800">{receiptNumber}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-stone-500">Date & Time</span>
+                        <span className="font-bold text-stone-800">{dateStr}, {timeStr}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-stone-500">Payment Method</span>
+                        <div className="text-right">
+                            <span className="block font-bold text-stone-800 capitalize">{channel}</span>
+                            <span className="text-xs text-stone-400">{mobileEnd}</span>
+                        </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-stone-500">Status</span>
+                        <Badge status={tx.status} size="sm" />
+                    </div>
+                </div>
+
+                <div className="w-full pt-4">
+                    <Button variant="outline" fullWidth onClick={onClose}>Close Receipt</Button>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
 export const HistoryTab: React.FC = () => {
   const [baskets, setBaskets] = useState<Basket[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBasket, setSelectedBasket] = useState<Basket | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loadingTx, setLoadingTx] = useState(false);
+  
+  // Transaction viewing state
+  const [viewTx, setViewTx] = useState<Transaction | null>(null);
 
   useEffect(() => {
       loadHistory();
@@ -36,17 +98,6 @@ export const HistoryTab: React.FC = () => {
 
   const handleViewDetails = async (basket: Basket) => {
       setSelectedBasket(basket);
-      setLoadingTx(true);
-      try {
-          // Fetch real transactions for this basket if not already loaded
-          // In a real app, this might be a separate API call or joined in the basket query
-          // For now we assume basket.transactions might be populated or we mock/fetch
-          // Since the type has transactions, we'll use them if available, or fetch
-          const txs = basket.transactions || []; // Ideally fetch from API.getTransactions(basket.id)
-          setTransactions(txs);
-      } finally {
-          setLoadingTx(false);
-      }
   };
 
   const getStatusColor = (status: string) => {
@@ -71,6 +122,12 @@ export const HistoryTab: React.FC = () => {
   return (
       <div className="space-y-6 w-full pb-20 font-sans">
           
+          <TransactionReceiptModal 
+            isOpen={!!viewTx} 
+            onClose={() => setViewTx(null)} 
+            tx={viewTx} 
+          />
+
           {/* Header */}
           <div className="flex justify-between items-end pb-2">
               <div>
@@ -269,25 +326,30 @@ export const HistoryTab: React.FC = () => {
                                   <Receipt size={14} /> Transaction History
                               </h4>
                               <div className="bg-white rounded-xl shadow-sm border border-stone-100 overflow-hidden">
-                                  {loadingTx ? (
-                                      <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-stone-400" /></div>
-                                  ) : transactions.length === 0 ? (
+                                  {(!selectedBasket.transactions || selectedBasket.transactions.length === 0) ? (
                                       <div className="p-8 text-center text-stone-400 text-sm italic">
                                           No individual transaction records found.
                                       </div>
                                   ) : (
-                                      transactions.map((tx, i) => (
-                                          <div key={i} className="flex justify-between items-center p-4 border-b border-stone-50 last:border-0 hover:bg-stone-50 transition-colors">
+                                      selectedBasket.transactions.map((tx, i) => (
+                                          <div 
+                                            key={i} 
+                                            onClick={() => setViewTx(tx)}
+                                            className="flex justify-between items-center p-4 border-b border-stone-50 last:border-0 hover:bg-stone-50 transition-colors cursor-pointer group"
+                                          >
                                               <div className="flex items-center gap-3">
                                                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
                                                       {tx.status === 'SUCCESS' ? <CheckCircle size={14} /> : <CreditCard size={14} />}
                                                   </div>
                                                   <div>
-                                                      <p className="text-sm font-bold text-stone-900">Mobile Money Payment</p>
+                                                      <p className="text-sm font-bold text-stone-900 group-hover:text-brand-700 transition-colors">Payment - {formatCurrency(tx.amount)}</p>
                                                       <p className="text-[10px] text-stone-400 font-mono">{new Date(tx.date).toLocaleDateString()} • {tx.id.substring(0,8)}...</p>
                                                   </div>
                                               </div>
-                                              <span className="font-mono text-sm font-bold text-stone-900">+{formatCurrency(tx.amount)}</span>
+                                              <div className="flex items-center gap-2">
+                                                  <span className="font-mono text-sm font-bold text-stone-900">{formatCurrency(tx.amount)}</span>
+                                                  <ChevronRight size={16} className="text-stone-300 group-hover:text-brand-500" />
+                                              </div>
                                           </div>
                                       ))
                                   )}
@@ -297,7 +359,7 @@ export const HistoryTab: React.FC = () => {
 
                       {/* Footer Actions */}
                       <div className="p-4 bg-white border-t border-stone-200">
-                          <Button variant="outline" fullWidth onClick={() => setSelectedBasket(null)}>Close Receipt</Button>
+                          <Button variant="outline" fullWidth onClick={() => setSelectedBasket(null)}>Close Order</Button>
                       </div>
                   </div>
               )}

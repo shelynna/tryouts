@@ -2,13 +2,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, Button, Input, Select, useToast, Modal } from '../../ui';
 import { User, PickupPoint } from '../../../types';
-import { MapPin, Edit2, LogOut, Camera, User as UserIcon, Mail, Phone, Loader2, Crown, CreditCard } from 'lucide-react';
+import { MapPin, Edit2, LogOut, Camera, User as UserIcon, Mail, Phone, Loader2, Crown, CreditCard, CalendarCheck } from 'lucide-react';
 import { API } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSubscription } from '../../../hooks/useSubscription';
 import { PlanSelector } from '../../subscription/PlanSelector';
 import { env } from '../../../lib/env';
+import { formatDate } from '../../../lib/utils';
 
 declare global {
     interface Window {
@@ -31,7 +32,7 @@ export const SettingsTab: React.FC<{ user: User }> = ({ user }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Subscription State
-  const { downgradeToStandard, isSML, loading: subLoading, refresh: refreshSubscription } = useSubscription(user?.id || '');
+  const { downgradeToStandard, isSML, loading: subLoading, refresh: refreshSubscription, planContext } = useSubscription(user?.id || '');
   const [isProcessingSub, setIsProcessingSub] = useState(false);
 
   useEffect(() => {
@@ -96,7 +97,6 @@ export const SettingsTab: React.FC<{ user: User }> = ({ user }) => {
   const verifySubscription = async (reference: string) => {
         try {
             showToast("Verifying subscription...", "info");
-            // Call API which now handles fallback if edge function fails
             const res = await API.subscription.verifyAndCompleteSubscription({
                 reference: reference,
                 userId: user.id,
@@ -118,7 +118,6 @@ export const SettingsTab: React.FC<{ user: User }> = ({ user }) => {
         }
   };
 
-  // Subscription Logic
   const handleUpgradePayment = async () => {
     setIsProcessingSub(true);
     const amount = 15.00;
@@ -146,7 +145,6 @@ export const SettingsTab: React.FC<{ user: User }> = ({ user }) => {
             metadata: { 
                 custom_fields: [{ display_name: "Type", variable_name: "type", value: "SUBSCRIPTION" }] 
             },
-            // FIX: Standard synchronous function wrapper
             callback: function(response: any) {
                 verifySubscription(response.reference);
             },
@@ -333,6 +331,15 @@ export const SettingsTab: React.FC<{ user: User }> = ({ user }) => {
                                   </div>
                               )}
                           </div>
+                          
+                          {isSML && planContext?.subscription && (
+                              <div className="mb-8 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                                  <div className="flex items-center gap-3 text-emerald-800">
+                                      <CalendarCheck size={20} />
+                                      <span className="font-bold">Valid until {formatDate(planContext.subscription.current_period_end)}</span>
+                                  </div>
+                              </div>
+                          )}
                           
                           {subLoading ? (
                               <div className="p-12 text-center"><Loader2 className="animate-spin mx-auto text-stone-400"/></div>

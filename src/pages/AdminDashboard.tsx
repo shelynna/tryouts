@@ -14,6 +14,7 @@ import { ProcurementTab } from '../components/dashboard/admin/ProcurementTab';
 import { ContentTab } from '../components/dashboard/admin/ContentTab';
 import { SystemLogsTab } from '../components/dashboard/admin/SystemLogsTab';
 import { AssociatesTab } from '../components/dashboard/admin/AssociatesTab';
+import { CycleTab } from '../components/dashboard/admin/CycleTab';
 import { API } from '../lib/api';
 import { Button, Modal } from '../components/ui';
 import { cn } from '../lib/utils';
@@ -24,6 +25,7 @@ const MotionDiv = motion.div as any;
 
 const TABS = [
   { id: 'OVERVIEW', label: 'Overview', iconClass: 'bx bxs-dashboard' },
+  { id: 'CYCLE', label: 'Cycle & Timer', iconClass: 'bx bx-time-five' },
   { id: 'ORDERS', label: 'Orders', iconClass: 'bx bx-cart' },
   { id: 'PRODUCTS', label: 'Inventory', iconClass: 'bx bx-package' },
   { id: 'USERS', label: 'Users', iconClass: 'bx bx-group' },
@@ -84,6 +86,7 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
 
         switch(activeTab) {
             case 'OVERVIEW': return <OverviewTab stats={stats} />;
+            case 'CYCLE': return <CycleTab settings={settings} onSave={async (s) => { try { await API.saveSettings(s); refreshAdminData(); onAction("Settings saved", "success"); } catch(e: any) { onAction(e.message, "error"); } }} />;
             case 'ORDERS': return <OrdersTab orders={allOrders} />;
             case 'PRODUCTS': return <ProductsTab products={products} settings={settings} refreshAdminData={refreshAdminData} notify={onAction} />;
             case 'USERS': return <UsersTab />;
@@ -265,4 +268,3 @@ export const AdminDashboard: React.FC<{ onAction: (msg: string, type?: any) => v
         </div>
     );
 };
-    

@@ -2,7 +2,7 @@
 import { supabase } from '../supabaseClient';
 import { realtimeService } from '../supabase/realtime';
 import { cycleService } from './cycleService';
-import { Basket, BasketItem, BasketStatus } from '../../types';
+import { Basket, BasketStatus } from '../../types';
 
 // MAPPER: Converts raw DB RPC response to Frontend Basket Interface
 const mapVirtualBasket = (data: any): Basket => {
@@ -22,7 +22,7 @@ const mapVirtualBasket = (data: any): Basket => {
         subtotal: data.totalValue,
         serviceFee: 0,
         discount: data.discount,
-        deliveryFee: data.delivery_fee, // Mapped
+        deliveryFee: data.delivery_fee || 0, // Mapped
         totalValue: data.totalValue,
         amountPaid: data.amountPaid,
         balance: data.balance,
@@ -47,7 +47,7 @@ export const getCurrentBasket = async (): Promise<Basket | undefined> => {
         const { data, error } = await supabase.rpc('get_user_cycle_summary', { p_cycle_id: cycle.id });
         if (error) throw error;
         
-        return mapVirtualBasket(data);
+        return mapVirtualBasket({ ...data, delivery_fee: data.delivery_fee || 0 });
     } catch (e) {
         console.warn("Basket fetch error", e);
         return undefined;
@@ -157,6 +157,11 @@ export const getOrCreateUserBasket = async (userId: string): Promise<Basket | nu
     const access = await cycleService.checkCycleAccess(userId, currentCycle.id);
     if (!access.canAccess) return null;
     
+    // FETCH PROFILE TO CHECK SUBSCRIPTION STATUS
+    const { data: profile } = await supabase.from('profiles').select('is_subscriber').eq('id', userId).single();
+    const isSubscriber = profile?.is_subscriber || false;
+    const deliveryFee = isSubscriber ? 0 : 9.50; // 9.5 GHS for standard users
+
     // Create new basket
     const { data: newBasket, error } = await supabase
       .from('baskets')
@@ -164,8 +169,9 @@ export const getOrCreateUserBasket = async (userId: string): Promise<Basket | nu
         user_id: userId,
         cycle_id: currentCycle.id,
         status: 'OPEN',
-        total_price: 0,
+        total_price: deliveryFee, // Initial total is just delivery fee
         amount_paid: 0,
+        delivery_fee: deliveryFee
       })
       .select(`
         id, user_id, cycle_id, status, 
@@ -200,7 +206,7 @@ export const updatePaidAmount = async (basketId: string, amount: number): Promis
       .update({ 
         amount_paid: newPaid,
         updated_at: new Date().toISOString(),
-        status: newPaid >= b.total_price ? 'PAID' : 'OPEN'
+        status: newPaid >= (b.total_price - 0.01) ? 'PAID' : 'OPEN'
       })
       .eq('id', basketId)
       .select(`
@@ -253,7 +259,10 @@ export const getUserBaskets = async (): Promise<Basket[]> => {
                 quantity, unit_price,
                 product:products (*)
             ),
-            cycles (name)
+            cycles (name),
+            payments (
+                id, reference, amount, status, created_at, payment_method, paystack_data
+            )
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -291,7 +300,14 @@ export const getUserBaskets = async (): Promise<Basket[]> => {
         amountPaid: b.amount_paid,
         balance: Math.max(0, b.total_price - b.amount_paid),
         status: b.status,
-        transactions: [], 
+        transactions: (b.payments || []).map((p: any) => ({
+            id: p.reference || p.id,
+            date: p.created_at,
+            amount: p.amount,
+            type: 'PAYMENT',
+            status: p.status === 'success' ? 'SUCCESS' : (p.status === 'pending' ? 'PENDING' : 'FAILED'),
+            metadata: p.paystack_data
+        })), 
         deliveryCode: b.delivery_code,
         pickupTimestamp: b.updated_at,
         isRolledOver: b.is_rolled_over,

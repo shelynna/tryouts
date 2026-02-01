@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { PlanSelector } from '../../components/subscription/PlanSelector';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Skeleton, useToast } from '../../components/ui';
-import { ArrowLeft, Crown, ShieldCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, Crown, ShieldCheck, Loader2, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSubscription } from '../../hooks/useSubscription';
 import { CreditFacility } from '../../components/subscription/CreditFacility';
@@ -23,7 +23,7 @@ export const Plans: React.FC = () => {
         if (!user) return;
         const amount = 15.00; // Fixed Subscription Fee
         
-        await processPayment(amount, user, undefined, 'SUBSCRIPTION', async () => {
+        await processPayment(amount, user, 'SUBSCRIPTION', 'SUBSCRIPTION', async () => {
             await Promise.all([refreshUser(), refreshSubscription()]);
             showToast("Welcome to SML Subscriber Tier!", "success");
         });
@@ -72,7 +72,7 @@ export const Plans: React.FC = () => {
                 )}
             </div>
 
-            <div className="text-center max-w-2xl mx-auto mb-10">
+            <div className="text-center max-w-2xl mx-auto mb-6">
                 <h1 className="text-3xl md:text-4xl font-serif font-bold text-stone-900 mb-2">My Subscription</h1>
                 <p className="text-stone-500 text-lg">Manage your plan and access exclusive benefits.</p>
             </div>
@@ -87,7 +87,7 @@ export const Plans: React.FC = () => {
                             </div>
                             <div>
                                 <h3 className="font-bold text-brand-900 text-lg">Plan Active</h3>
-                                <p className="text-brand-800/70 text-sm">Your SML subscription is valid for this semester.</p>
+                                <p className="text-brand-800/70 text-sm">Your SML subscription is valid.</p>
                             </div>
                         </div>
                         <Button 
@@ -118,6 +118,12 @@ export const Plans: React.FC = () => {
                         <p className="text-stone-300 text-lg leading-relaxed">
                             Upgrade to Subscriber to access our <strong>Credit Facility</strong> (Top-Ups), exclusive discounts, and priority delivery services.
                         </p>
+                        <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl text-left border border-white/10">
+                            <p className="flex gap-2 text-sm text-yellow-100 font-medium">
+                                <Info size={24} className="shrink-0 text-yellow-400" />
+                                <span><strong>Important:</strong> The GHS 15.00 subscription fee is for <strong>membership benefits only</strong>. It does <u>not</u> pay for items in your basket.</span>
+                            </p>
+                        </div>
                         <Button 
                             onClick={handleUpgradePayment} 
                             disabled={isProcessing}

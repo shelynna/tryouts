@@ -13,6 +13,7 @@ import { UpgradeModal } from './modals/UpgradeModal';
 import { ASSETS } from '../../../assets';
 import { useNavigate } from 'react-router-dom';
 import { usePaymentProcessor } from '../../../hooks/usePaymentProcessor';
+import { CountdownTimer } from '../../user/CountdownTimer';
 
 interface OverviewTabProps {
     user: User;
@@ -24,7 +25,7 @@ interface OverviewTabProps {
 }
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, products, onGoToShop, onAction, refreshUser }) => {
-    const { basket, outstandingBaskets, refreshBasket } = useBasket();
+    const { basket, outstandingBaskets, refreshBasket, activeCycle } = useBasket();
     const navigate = useNavigate();
     const { processPayment, isProcessing } = usePaymentProcessor();
     
@@ -125,6 +126,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ user, settings, produc
                         <Clock className="text-brand-600" size={18} /> Current Cycle Status
                     </h3>
                 </div>
+                
+                {/* Countdown Timer Integration */}
+                {activeCycle && (activeCycle.status === 'OPEN' || activeCycle.status === 'active') && (
+                    <div className="mb-6">
+                        <CountdownTimer cycle={activeCycle} user={user} />
+                    </div>
+                )}
+
                 <StatusCard 
                     userId={user.id}
                     basket={basket}

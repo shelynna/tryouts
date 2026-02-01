@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { Logger } from '../logger';
 
 export const verifyPayment = async (reference: string, basketId: string | undefined, amount: number) => {
+    // Explicitly check if this is a subscription payment based on special basketId ID
     const isSubscription = basketId === 'subscription_upgrade' || basketId === 'SUBSCRIPTION';
     const type = isSubscription ? 'subscription' : 'payment';
     
@@ -15,19 +16,17 @@ export const verifyPayment = async (reference: string, basketId: string | undefi
 
     try {
         // 1. Attempt Secure Verification via Edge Function
-        // This is the preferred server-side method
         const { data, error } = await supabase.functions.invoke('paystack-verify-new', {
             body: { reference, userId: user.id, type }
         });
         
-        // 2. FAILOVER STRATEGY: 
-        // If Edge Function is unreachable (network error / not deployed / 500 / 404), 
-        // fallback to calling the Postgres RPC directly from the client.
-        // This ensures the user isn't stuck after paying money.
+        // 2. FAILOVER STRATEGY
         if (error) {
             console.warn("[Payment] Edge Function Unreachable. Using RPC Fallback...", error);
             
             // Call Database Function directly
+            // IMPORTANT: If type is 'subscription', we MUST NOT pass a basket ID to prevent 
+            // the money from being added to the user's shopping balance.
             const { data: rpcData, error: rpcError } = await supabase.rpc("create_payment_record", {
                 p_user_id: user.id,
                 p_reference: reference,
@@ -37,7 +36,7 @@ export const verifyPayment = async (reference: string, basketId: string | undefi
                 p_payment_method: "paystack_fallback",
                 p_channel: "web",
                 p_ip_address: "0.0.0.0",
-                p_paystack_data: { fallback: true, verified: false },
+                p_paystack_data: { fallback: true, verified: false, metadata: { type: isSubscription ? 'SUBSCRIPTION' : 'PAYMENT' } },
                 p_subscription_id: null 
             });
 
@@ -49,8 +48,10 @@ export const verifyPayment = async (reference: string, basketId: string | undefi
                 const end = new Date(); 
                 end.setMonth(end.getMonth() + 6);
                 
+                // 1. Update Profile Role
                 await supabase.from('profiles').update({ is_subscriber: true }).eq('id', user.id);
                 
+                // 2. Record Subscription Validity
                 const { data: plan } = await supabase.from('subscription_plans').select('id').eq('code', 'sml').maybeSingle();
                 if (plan) {
                     await supabase.from('user_subscriptions').upsert({

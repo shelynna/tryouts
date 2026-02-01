@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingBag, Wallet } from 'lucide-react';
+import { X, ShoppingBag, Wallet, CheckCircle } from 'lucide-react';
 import { useBasket } from '../../context/BasketContext';
 import { Button } from '../ui';
 import { formatCurrency } from '../../lib/utils';
@@ -40,6 +40,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard, o
 
   if (!mounted) return null;
 
+  const amountPaid = basket?.amountPaid || 0;
+  const deliveryFee = basket?.deliveryFee || 0;
+  const balance = Math.max(0, totalValue - amountPaid);
+  const isFullyPaid = basket?.status === 'PAID' || (totalValue > 0 && balance < 0.1);
+
   return createPortal(
     <AnimatePresence>
       {isCartOpen && (
@@ -57,7 +62,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard, o
           >
             {/* Header */}
             <div className="p-5 border-b border-stone-200 bg-white/80 backdrop-blur-md flex items-center justify-between">
-                <h2 className="font-heading font-bold text-xl text-stone-900">Your Basket</h2>
+                <div className="flex items-center gap-2">
+                    <h2 className="font-heading font-bold text-xl text-stone-900">Your Basket</h2>
+                    {isFullyPaid && (
+                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest flex items-center gap-1">
+                            <CheckCircle size={10} /> Paid
+                        </span>
+                    )}
+                </div>
                 <button onClick={closeCart} className="p-2 rounded-full hover:bg-stone-100"><X size={20}/></button>
             </div>
 
@@ -69,15 +81,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard, o
                         <p className="font-bold text-stone-500">Your basket is empty</p>
                     </div>
                 ) : (
-                    basket.items.map(item => (
-                        <CartItem 
-                            key={item.productId}
-                            item={item}
-                            isLocked={false} 
-                            onUpdate={updateItem}
-                            onRemove={removeItem}
-                        />
-                    ))
+                    <>
+                        {isFullyPaid && (
+                            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl text-center mb-2">
+                                <p className="text-emerald-800 text-sm font-medium">
+                                    These items are fully secured. You can add more items if you wish to increase your order.
+                                </p>
+                            </div>
+                        )}
+                        {basket.items.map(item => (
+                            <CartItem 
+                                key={item.productId}
+                                item={item}
+                                isLocked={false} 
+                                onUpdate={updateItem}
+                                onRemove={removeItem}
+                            />
+                        ))}
+                    </>
                 )}
             </div>
 
@@ -89,6 +110,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard, o
                             <span>Subtotal</span>
                             <span>{formatCurrency(subtotal)}</span>
                         </div>
+                        {deliveryFee > 0 && (
+                            <div className="flex justify-between text-stone-500 text-sm">
+                                <span>Delivery Fee</span>
+                                <span>{formatCurrency(deliveryFee)}</span>
+                            </div>
+                        )}
                         {discount > 0 && (
                             <div className="flex justify-between text-emerald-600 font-bold text-sm">
                                 <span>Discount</span>
@@ -96,20 +123,32 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigateToDashboard, o
                             </div>
                         )}
                         <div className="flex justify-between items-baseline pt-2 border-t border-stone-100">
-                            <span className="font-bold text-stone-900">Total</span>
-                            <span className="font-heading font-bold text-2xl text-brand-900">{formatCurrency(totalValue)}</span>
+                            <span className="font-bold text-stone-900">Total Value</span>
+                            <span className="font-heading font-bold text-lg text-stone-900">{formatCurrency(totalValue)}</span>
                         </div>
+                        {amountPaid > 0 && (
+                            <div className="flex justify-between items-baseline text-sm">
+                                <span className="text-stone-500">Amount Paid</span>
+                                <span className="font-bold text-emerald-600">{formatCurrency(amountPaid)}</span>
+                            </div>
+                        )}
                     </div>
 
-                    <Button 
-                        fullWidth 
-                        size="xl" 
-                        onClick={handleCheckout} 
-                        className="shadow-xl bg-stone-900 hover:bg-stone-800 flex items-center justify-between px-6"
-                    >
-                        <span className="flex items-center gap-2"><Wallet size={18} /> Checkout</span>
-                        <span className="bg-white/20 px-2 py-0.5 rounded text-sm font-mono">{formatCurrency(totalValue)}</span>
-                    </Button>
+                    {isFullyPaid ? (
+                        <div className="bg-emerald-900 text-white p-4 rounded-xl text-center font-bold shadow-lg flex items-center justify-center gap-2">
+                            <CheckCircle size={20} /> Order Secured
+                        </div>
+                    ) : (
+                        <Button 
+                            fullWidth 
+                            size="xl" 
+                            onClick={handleCheckout} 
+                            className="shadow-xl bg-stone-900 hover:bg-stone-800 flex items-center justify-between px-6"
+                        >
+                            <span className="flex items-center gap-2"><Wallet size={18} /> Pay Balance</span>
+                            <span className="bg-white/20 px-2 py-0.5 rounded text-sm font-mono">{formatCurrency(balance)}</span>
+                        </Button>
+                    )}
                 </div>
             )}
           </MotionDiv>

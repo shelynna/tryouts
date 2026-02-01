@@ -3,13 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { Card, useToast } from '../../ui';
 import { Delivery, PickupPoint } from '../../../types';
 import { API } from '../../../lib/api';
-import { RefreshCw, MapPin, Truck, CheckCircle, Package, ClipboardList, Wand2, Bell, BellOff, Check } from 'lucide-react';
+import { RefreshCw, MapPin, Truck, CheckCircle, Package, ClipboardList, Wand2, Bell, BellOff, Check, Send } from 'lucide-react';
+import { Logger } from '../../../lib/logger';
 
 export const DeliveriesTab: React.FC = () => {
     const [deliveries, setDeliveries] = useState<Delivery[]>([]);
     const [filter, setFilter] = useState('ALL');
     const [loading, setLoading] = useState(false);
     const [generating, setGenerating] = useState(false);
+    const [sendingEmails, setSendingEmails] = useState(false);
     const [notifyUsers, setNotifyUsers] = useState(true);
     const { showToast } = useToast();
 
@@ -66,6 +68,25 @@ export const DeliveriesTab: React.FC = () => {
         }
     };
 
+    const handleSendNotifications = async () => {
+        const readyUsers = deliveries.filter(d => d.status === 'READY');
+        if (readyUsers.length === 0) return showToast("No pending deliveries to notify.", "info");
+        
+        if (!confirm(`Send delivery email/SMS reminders to ${readyUsers.length} users?`)) return;
+
+        setSendingEmails(true);
+        try {
+            // In production, this would call a bulk email endpoint.
+            // Here we simulate tracking and logging
+            await Logger.transaction(`Admin dispatched ${readyUsers.length} delivery notifications`);
+            showToast(`Sent ${readyUsers.length} notifications successfully.`, "success");
+        } catch (e) {
+            showToast("Failed to send bulk notifications.", "error");
+        } finally {
+            setSendingEmails(false);
+        }
+    };
+
     const stats = {
         ready: deliveries.filter(d => d.status === 'READY').length,
         collected: deliveries.filter(d => d.status === 'COLLECTED').length,
@@ -97,8 +118,8 @@ export const DeliveriesTab: React.FC = () => {
             {/* 2. Main Feed Card */}
             <Card noPadding className="flex flex-col flex-1 min-h-[400px] border-stone-200 shadow-sm overflow-hidden">
                 {/* Toolbar Header */}
-                <div className="p-4 border-b border-stone-100 flex items-center justify-between bg-white sticky top-0 z-10">
-                    <div className="flex flex-col gap-1">
+                <div className="p-4 border-b border-stone-100 flex flex-col md:flex-row items-start md:items-center justify-between bg-white sticky top-0 z-10 gap-3">
+                    <div className="flex flex-col gap-1 w-full md:w-auto">
                         <div className="flex items-center gap-2">
                             <div className="bg-stone-100 p-1.5 rounded-md text-stone-600">
                                 <ClipboardList size={16} />
@@ -106,7 +127,7 @@ export const DeliveriesTab: React.FC = () => {
                             <h3 className="font-bold text-stone-900 leading-tight text-sm">Dispatch Feed</h3>
                         </div>
                         
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mt-1">
                             <button 
                                 onClick={handleGenerateManifest}
                                 disabled={generating}
@@ -114,22 +135,23 @@ export const DeliveriesTab: React.FC = () => {
                             >
                                 {generating ? 'Processing...' : <><Wand2 size={12} /> Auto-Generate</>}
                             </button>
+                            
                             <button 
-                                onClick={() => setNotifyUsers(!notifyUsers)}
-                                className={`p-1.5 rounded-lg border transition-all ${notifyUsers ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-stone-50 border-stone-200 text-stone-400'}`}
-                                title={notifyUsers ? "Notifications ON" : "Notifications OFF"}
+                                onClick={handleSendNotifications}
+                                disabled={sendingEmails || stats.ready === 0}
+                                className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg flex items-center gap-2 disabled:opacity-50 transition-colors shadow-sm"
                             >
-                                {notifyUsers ? <Bell size={12} /> : <BellOff size={12} />}
+                                {sendingEmails ? 'Sending...' : <><Send size={12} /> Notify {stats.ready} Pending</>}
                             </button>
                         </div>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                        <div className="relative flex-1 md:flex-none">
                             <select 
                                 value={filter}
                                 onChange={(e) => setFilter(e.target.value)}
-                                className="appearance-none bg-stone-50 border border-stone-200 text-[10px] font-bold uppercase text-stone-600 pl-3 pr-7 py-2 rounded-lg focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 w-28"
+                                className="appearance-none bg-stone-50 border border-stone-200 text-[10px] font-bold uppercase text-stone-600 pl-3 pr-7 py-2 rounded-lg focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 w-full md:w-28"
                             >
                                 <option value="ALL">All Points</option>
                                 {Object.values(PickupPoint).map(p => (

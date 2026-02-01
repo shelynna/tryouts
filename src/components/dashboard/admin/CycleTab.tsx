@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Modal, Input, Badge } from '../../ui';
-import { Save, AlertTriangle, Calendar, Play, Lock, Clock, Edit, Timer } from 'lucide-react';
+import { Save, AlertTriangle, Calendar, Play, Lock, Clock, Edit, Timer, Settings2 } from 'lucide-react';
 import { SystemSettings, Cycle } from '../../../types';
 import { API } from '../../../lib/api';
 import { formatDate } from '../../../lib/utils';
 import { CountdownTimer } from '../../user/CountdownTimer';
+import { supabase } from '../../../lib/supabaseClient';
 
 interface CycleTabProps {
     settings: SystemSettings;
@@ -33,13 +34,14 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
     const [newCycleData, setNewCycleData] = useState({
         name: '',
         start: '',
-        lock: '',
+        lock: '', // This acts as Subscriber/Final Lock
+        standardLock: '', // New Field for Standard Users
         delivery: ''
     });
     
     // Edit Dates State
     const [isEditingDates, setIsEditingDates] = useState(false);
-    const [editDates, setEditDates] = useState({ open: '', lock: '' });
+    const [editDates, setEditDates] = useState({ open: '', lock: '', standardLock: '' });
 
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -56,7 +58,8 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
                 setCycleName(cycle.name);
                 setEditDates({
                     open: formatForInput(cycle.paymentStartDate),
-                    lock: formatForInput(cycle.lockDate)
+                    lock: formatForInput(cycle.lockDate),
+                    standardLock: formatForInput(cycle.standardLockDate || cycle.lockDate)
                 });
             }
         } finally {
@@ -71,13 +74,15 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
             const monthName = nextMonth.toLocaleString('default', { month: 'long' });
             
             const start = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1, 8, 0);
-            const lock = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 25, 23, 59);
+            const standardLock = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 21, 23, 59); // 21st for standard
+            const subLock = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 26, 23, 59); // 26th for subs
             const delivery = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 28, 9, 0);
             
             setNewCycleData({
                 name: `SML ${monthName} Cycle`,
                 start: formatForInput(start.toISOString()),
-                lock: formatForInput(lock.toISOString()),
+                standardLock: formatForInput(standardLock.toISOString()),
+                lock: formatForInput(subLock.toISOString()), // Main lock date is for subs
                 delivery: formatForInput(delivery.toISOString())
             });
         }
@@ -87,13 +92,20 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
         if (!newCycleData.name) return;
         setIsProcessing(true);
         try {
-            await API.startNewCycle(
-                newCycleData.name, 
-                new Date(newCycleData.start).toISOString(),
-                new Date(newCycleData.lock).toISOString(), 
-                new Date(newCycleData.delivery).toISOString()
-            );
+            // Use Supabase RPC directly or via API service
+            // We need to pass the standard lock date to the RPC
+            const { error } = await supabase.rpc('start_new_cycle', {
+                p_name: newCycleData.name,
+                p_start_date: new Date(newCycleData.start).toISOString(),
+                p_end_date: new Date(newCycleData.lock).toISOString(), // Subscriber/Final Lock
+                p_delivery_date: new Date(newCycleData.delivery).toISOString(),
+                p_standard_lock_date: new Date(newCycleData.standardLock).toISOString() // New Param
+            });
+
+            if (error) throw error;
+
             setShowNewCycleModal(false);
+            // Reload page to refresh all contexts
             window.location.reload();
         } catch (e: any) {
             alert("Failed to start cycle: " + e.message);
@@ -123,7 +135,8 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
         try {
             await API.updateCycleDates(activeCycle.id, {
                 open_date: new Date(editDates.open).toISOString(),
-                lock_date: new Date(editDates.lock).toISOString()
+                lock_date: new Date(editDates.lock).toISOString(),
+                standard_lock_date: new Date(editDates.standardLock).toISOString()
             });
             await loadCycle();
             setIsEditingDates(false);
@@ -174,14 +187,14 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
                                     onClick={() => setIsEditingDates(!isEditingDates)}
                                     className="gap-2"
                                 >
-                                    <Edit size={14} /> {isEditingDates ? 'Cancel Edit' : 'Edit Dates'}
+                                    <Edit size={14} /> {isEditingDates ? 'Cancel Edit' : 'Edit Timeline'}
                                 </Button>
                             </div>
 
-                            {/* Live Countdown for Admins */}
+                            {/* Live Countdown for Admins (Subscriber View) */}
                             {(activeCycle.status === 'OPEN' || activeCycle.status === 'active') && (
                                 <div className="mt-4">
-                                    <CountdownTimer cycle={activeCycle} />
+                                    <CountdownTimer cycle={activeCycle} user={{ isSubscriber: true } as any} />
                                 </div>
                             )}
 
@@ -189,12 +202,11 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
                                 <div className="space-y-4 bg-brand-50 p-4 rounded-xl border border-brand-100 animate-in fade-in">
                                     <div className="bg-white p-3 rounded-lg border border-brand-100 mb-2">
                                         <p className="text-[10px] text-brand-800 leading-relaxed">
-                                            <strong>Note:</strong> Adjusting these dates affects user access in real-time. 
-                                            Setting the Lock Date to the past will immediately lock the cycle.
+                                            <strong>Real-time Update:</strong> Adjusting dates affects user access immediately.
                                         </p>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-brand-800 mb-1">Open Date (Start)</label>
+                                        <label className="block text-xs font-bold text-brand-800 mb-1">Cycle Open Date</label>
                                         <input 
                                             type="datetime-local" 
                                             className="w-full p-2 border rounded-lg text-sm bg-white" 
@@ -202,14 +214,25 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
                                             onChange={e => setEditDates({...editDates, open: e.target.value})} 
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-800 mb-1">Lock Date (End)</label>
-                                        <input 
-                                            type="datetime-local" 
-                                            className="w-full p-2 border rounded-lg text-sm bg-white" 
-                                            value={editDates.lock} 
-                                            onChange={e => setEditDates({...editDates, lock: e.target.value})} 
-                                        />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-orange-700 mb-1">Standard Lock (Free)</label>
+                                            <input 
+                                                type="datetime-local" 
+                                                className="w-full p-2 border rounded-lg text-sm bg-white border-orange-200" 
+                                                value={editDates.standardLock} 
+                                                onChange={e => setEditDates({...editDates, standardLock: e.target.value})} 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-purple-700 mb-1">Subscriber Lock</label>
+                                            <input 
+                                                type="datetime-local" 
+                                                className="w-full p-2 border rounded-lg text-sm bg-white border-purple-200" 
+                                                value={editDates.lock} 
+                                                onChange={e => setEditDates({...editDates, lock: e.target.value})} 
+                                            />
+                                        </div>
                                     </div>
                                     <Button fullWidth onClick={handleUpdateDates} loading={isProcessing} className="bg-brand-600 text-white shadow-lg">
                                         Update Real-time
@@ -229,9 +252,19 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
 
                                     <div className="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-white p-2 rounded-lg text-orange-600 shadow-sm"><Lock size={16}/></div>
+                                            <div className="bg-white p-2 rounded-lg text-orange-600 shadow-sm"><Settings2 size={16}/></div>
                                             <div>
-                                                <p className="text-xs font-bold text-stone-900">Lock Date (Payment Due)</p>
+                                                <p className="text-xs font-bold text-stone-900">Free User Deadline</p>
+                                                <p className="text-[10px] text-stone-500">{activeCycle.standardLockDate ? formatDate(activeCycle.standardLockDate) : 'Same as Subs'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
+                                        <div className="flex items-center gap-3">
+                                            <div className="bg-white p-2 rounded-lg text-purple-600 shadow-sm"><Lock size={16}/></div>
+                                            <div>
+                                                <p className="text-xs font-bold text-stone-900">Subscriber Deadline</p>
                                                 <p className="text-[10px] text-stone-500">{formatDate(activeCycle.lockDate)}</p>
                                             </div>
                                         </div>
@@ -258,10 +291,10 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
                                         onClick={handleLockCycle}
                                         loading={isProcessing}
                                     >
-                                        <Lock size={16} className="mr-2"/> Lock Cycle (Stop Orders)
+                                        <Lock size={16} className="mr-2"/> Force Lock Cycle (Stop Orders)
                                     </Button>
                                     <p className="text-[10px] text-center text-stone-400 mt-2">
-                                        Locking prevents new items but allows payments.
+                                        This locks the cycle for everyone immediately.
                                     </p>
                                 </div>
                             )}
@@ -332,13 +365,31 @@ export const CycleTab: React.FC<CycleTabProps> = ({ settings, onSave }) => {
                                 <input type="datetime-local" className="w-full p-2 border rounded-lg text-sm bg-stone-50" value={newCycleData.start} onChange={e => setNewCycleData({...newCycleData, start: e.target.value})} />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-stone-500 mb-1">Lock Date</label>
-                                <input type="datetime-local" className="w-full p-2 border rounded-lg text-sm bg-stone-50" value={newCycleData.lock} onChange={e => setNewCycleData({...newCycleData, lock: e.target.value})} />
+                                <label className="block text-xs font-bold text-stone-500 mb-1">Delivery Day</label>
+                                <input type="datetime-local" className="w-full p-2 border rounded-lg text-sm bg-stone-50" value={newCycleData.delivery} onChange={e => setNewCycleData({...newCycleData, delivery: e.target.value})} />
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-stone-500 mb-1">Delivery Day</label>
-                            <input type="datetime-local" className="w-full p-2 border rounded-lg text-sm bg-stone-50" value={newCycleData.delivery} onChange={e => setNewCycleData({...newCycleData, delivery: e.target.value})} />
+                        
+                        {/* TIERED LOCK DATES */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-orange-700 mb-1">Standard Lock (Free)</label>
+                                <input 
+                                    type="datetime-local" 
+                                    className="w-full p-2 border rounded-lg text-sm bg-white border-orange-200" 
+                                    value={newCycleData.standardLock} 
+                                    onChange={e => setNewCycleData({...newCycleData, standardLock: e.target.value})} 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-purple-700 mb-1">Subscriber Lock</label>
+                                <input 
+                                    type="datetime-local" 
+                                    className="w-full p-2 border rounded-lg text-sm bg-white border-purple-200" 
+                                    value={newCycleData.lock} 
+                                    onChange={e => setNewCycleData({...newCycleData, lock: e.target.value})} 
+                                />
+                            </div>
                         </div>
                     </div>
 

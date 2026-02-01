@@ -40,14 +40,17 @@ interface BasketState {
   unsubscribe: () => void;
 }
 
-const calculateTotals = (items: BasketItem[], discountAmount: number = 0, feePercentage: number = 0.05) => {
+const calculateTotals = (items: BasketItem[], discountAmount: number = 0, feePercentage: number = 0.05, deliveryFee: number = 0) => {
+    // items.unitPrice now includes the 5% fee directly (from DB or optimistic update)
     const localSub = items.reduce((acc, item) => {
         // Exclude inactive products from total calculation
         if (item.product && item.product.isActive === false) return acc;
         return acc + (item.unitPrice * item.quantity);
     }, 0);
-    const localFee = localSub * feePercentage; 
-    const localTot = Math.max(0, localSub + localFee - discountAmount);
+    
+    // Fee is baked in, so localFee is effectively 0 for display purposes
+    const localFee = 0; 
+    const localTot = Math.max(0, localSub + deliveryFee - discountAmount);
     return { localSub, localFee, localTot };
 };
 
@@ -121,18 +124,24 @@ export const useBasketStore = create<BasketState>((set, get) => ({
           // Calc totals for current basket
           const items = current?.items || [];
           const count = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
-          const { localSub, localFee, localTot } = calculateTotals(items, current?.discount || 0, get().feePercentage);
+          const deliveryFee = current?.deliveryFee || 0;
+          
+          const { localSub, localFee, localTot } = calculateTotals(
+              items, 
+              current?.discount || 0, 
+              get().feePercentage,
+              deliveryFee
+          );
 
           // Update current basket object with recalculated totals to exclude inactive items
           const updatedBasket = current ? {
               ...current,
               subtotal: localSub,
               serviceFee: localFee,
-              totalValue: localTot,
+              totalValue: localTot, // Use calculated total to stay reactive
               balance: Math.max(0, localTot - current.amountPaid)
           } : undefined;
 
-          // Force normal e-commerce behavior: Always unlocked, always payable if items exist
           set({
               basket: updatedBasket,
               outstandingBaskets: outstanding,
@@ -156,6 +165,10 @@ export const useBasketStore = create<BasketState>((set, get) => ({
       const currentItems = basket?.items ? [...basket.items] : [];
       const existingItemIndex = currentItems.findIndex((i: any) => i.productId === product.id);
       
+      // Calculate price with 5% fee baked in
+      const feeMultiplier = 1 + feePercentage;
+      const optimisticUnitPrice = product.price * feeMultiplier;
+
       let newItems = [...currentItems];
       if (existingItemIndex > -1) {
           // Update existing item
@@ -166,7 +179,8 @@ export const useBasketStore = create<BasketState>((set, get) => ({
               newItems[existingItemIndex] = {
                   ...item,
                   quantity: quantity,
-                  totalPrice: quantity * item.unitPrice
+                  unitPrice: optimisticUnitPrice,
+                  totalPrice: quantity * optimisticUnitPrice
               };
           }
       } else if (quantity > 0) {
@@ -174,13 +188,14 @@ export const useBasketStore = create<BasketState>((set, get) => ({
           newItems.push({
               productId: product.id,
               quantity: quantity,
-              unitPrice: product.price,
-              totalPrice: quantity * product.price,
+              unitPrice: optimisticUnitPrice,
+              totalPrice: quantity * optimisticUnitPrice,
               product: product
           });
       }
 
-      const { localSub, localFee, localTot } = calculateTotals(newItems, basket?.discount || 0, feePercentage);
+      const deliveryFee = basket?.deliveryFee || 0;
+      const { localSub, localFee, localTot } = calculateTotals(newItems, basket?.discount || 0, feePercentage, deliveryFee);
       
       const newItemCount = newItems.reduce((acc: number, i: any) => acc + i.quantity, 0);
 
@@ -191,6 +206,7 @@ export const useBasketStore = create<BasketState>((set, get) => ({
           serviceFee: localFee,
           totalValue: localTot,
           balance: Math.max(0, localTot - (basket?.amountPaid || 0)),
+          deliveryFee: deliveryFee
       } as Basket;
 
       set({ 
@@ -215,17 +231,9 @@ export const useBasketStore = create<BasketState>((set, get) => ({
   removeItem: async (productId) => {
       // Just call addItem with 0 quantity which handles removal logic
       const item = get().basket?.items?.find((i: any) => i.productId === productId);
-      // Even if item.product is undefined (rare), we need to pass a dummy product with correct ID to trigger removal logic in addItem
-      // However, addItem expects a Product object. 
-      // If item.product is missing, we can try to construct a minimal one or call API directly.
       if (item && item.product) {
           await get().addItem(item.product, 0);
       } else if (item) {
-          // Fallback if product details are missing locally
-          // We can't use addItem easily without full product obj for optimistic update of new list if we were adding, 
-          // but for removing, we just need ID. 
-          // But addItem logic relies on product obj.
-          // Let's call API directly and refresh.
            try {
               await upsertBasketItem(productId, 0, 0);
               await get().refreshBasket();

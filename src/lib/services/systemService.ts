@@ -30,6 +30,7 @@ export const getActiveCycle = async (forceRefresh = false): Promise<Cycle | null
         paymentStartDate: data.start_date,
         paymentEndDate: data.end_date,
         lockDate: data.end_date, // Usually end date is lock date
+        standardLockDate: data.standard_lock_date, // NEW
         deliveryDate: data.delivery_date,
         isActive: data.status === 'OPEN' || data.status === 'LOCKED'
     } as any;
@@ -85,15 +86,16 @@ export const saveSettings = async (settings: Partial<SystemSettings>) => {
 export const startNewCycle = async (
     name: string,
     startDate: string,
-    endDate: string, // Lock Date
+    endDate: string, // Lock Date / End Date
     deliveryDate: string
 ) => {
+    // Legacy support wrapper - maps 'endDate' to both subscriber and standard lock if unspecified
     const { data, error } = await supabase.rpc('start_new_cycle', {
         p_name: name,
         p_start_date: startDate,
         p_end_date: endDate, 
-        p_lock_date: endDate, // Lock matches end date
-        p_delivery_date: deliveryDate
+        p_delivery_date: deliveryDate,
+        p_standard_lock_date: endDate // Default to same as end date if not provided in args
     });
     if (error) throw error;
     return data;

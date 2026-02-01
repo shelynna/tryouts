@@ -170,6 +170,7 @@ export interface Cycle {
   paymentStartDate?: string | null; // Mapped to open_date
   paymentEndDate?: string | null; // Mapped to lock_date
   lockDate?: string | null;
+  standardLockDate?: string | null; // NEW: Free user lock date
   unlockDate?: string | null;
   bulkStartDate?: string | null;
   bulkEndDate?: string | null;
@@ -178,6 +179,7 @@ export interface Cycle {
   isActive: boolean;
   open_date?: string; // Raw DB
   lock_date?: string; // Raw DB
+  standard_lock_date?: string; // Raw DB
 }
 
 export type CyclePhase = 
@@ -199,6 +201,7 @@ export interface CycleAccess {
 export interface CycleDates {
   open_date?: string | Date;
   lock_date?: string | Date;
+  standard_lock_date?: string | Date; // NEW
   assessment_date?: string | Date;
 }
 

@@ -69,9 +69,9 @@ export const PlanSelector: React.FC<PlanSelectorProps> = ({ userId, onPlanSelect
                 variant={isCurrent ? 'outline' : 'primary'}
                 disabled={isCurrent}
                 onClick={() => onPlanSelect?.(plan.code)}
-                className={isCurrent ? 'border-brand-200 text-brand-700 bg-brand-50' : 'shadow-xl'}
+                className={isCurrent ? 'border-brand-200 text-brand-700 bg-brand-50 opacity-100 cursor-default' : 'shadow-xl'}
             >
-                {isCurrent ? 'Current Plan' : (isSML ? 'Upgrade Now' : 'Downgrade')}
+                {isCurrent ? (isSML ? 'Active Subscription' : 'Current Plan') : (isSML ? 'Upgrade Now' : 'Downgrade')}
             </Button>
           </div>
         );
